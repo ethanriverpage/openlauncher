@@ -17,9 +17,22 @@ android {
         versionName    = "0.0.5"
     }
 
+    signingConfigs {
+        // Fixed debug key committed to the repo so every CI debug build is signed the same
+        // way and can be installed over the previous one (CI otherwise generates a fresh
+        // debug key per run → INSTALL_FAILED_UPDATE_INCOMPATIBLE). Not a release key.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storeType = "pkcs12"
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         debug {
-            // Default signing config for normal device testing (restores app visibility)
+            signingConfig = signingConfigs.getByName("debug")
         }
         release {
             isMinifyEnabled = false

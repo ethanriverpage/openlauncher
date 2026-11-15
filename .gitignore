@@ -38,3 +38,6 @@ Thumbs.db
 
 # Kotlin
 .kotlin/
+
+# Fixed debug signing key (not secret) so CI debug builds update in place
+!app/debug.keystore
