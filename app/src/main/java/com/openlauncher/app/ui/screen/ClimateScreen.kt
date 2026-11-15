@@ -114,6 +114,13 @@ fun ClimatePanel(
         return
     }
 
+    var rearOpen by remember { mutableStateOf(false) }
+    val hasRear = s.rearTemp != null || s.rearFan != null
+    if (rearOpen && hasRear) {
+        RearPanel(s, colors, modifier, onInteract, onBack = { onInteract(); rearOpen = false })
+        return
+    }
+
     // F0 (power) has no receive data on this car, so "off" is inferred from blower level 0.
     val off = s.fan == 0
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -127,13 +134,17 @@ fun ClimatePanel(
                 title = "PASSENGER", s = s, left = false, off = off, colors = colors,
                 modifier = Modifier.weight(1f).fillMaxHeight(), send = send
             )
-            if (s.rearTemp != null || s.rearFan != null) {
-                RearCard(s, colors, Modifier.weight(1f).fillMaxHeight(), onInteract)
-            }
         }
         Row(Modifier.fillMaxWidth().height(72.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             toggles(s).forEach { t ->
                 ToggleTile(t, colors, Modifier.weight(1f).fillMaxHeight()) { send(t.cmd) }
+            }
+            if (hasRear) {
+                val rearOn = (s.rearFan ?: 0) > 0
+                ToggleTile(
+                    Toggle("REAR", icon = Icons.Default.AirlineSeatReclineNormal, on = rearOn, cmd = Cmd.POWER),
+                    colors, Modifier.weight(1f).fillMaxHeight()
+                ) { onInteract(); rearOpen = true }
             }
         }
     }
@@ -236,71 +247,93 @@ private fun FanCard(s: ClimateState, off: Boolean, colors: ClimateColors, modifi
 }
 
 /**
- * GX460 rear climate. com.tw.ac reports it but has no command for it, so keys go straight to
- * the MCU via [TwMcu] — the same frames the stock A/C app sends.
+ * GX460 rear climate, opened from the REAR tile. com.tw.ac reports rear state but has no
+ * command for it, so keys go straight to the MCU via [TwMcu] — the frames the stock app sends.
  */
 @Composable
-private fun RearCard(s: ClimateState, colors: ClimateColors, modifier: Modifier, onInteract: () -> Unit) {
+private fun RearPanel(
+    s: ClimateState,
+    colors: ClimateColors,
+    modifier: Modifier,
+    onInteract: () -> Unit,
+    onBack: () -> Unit
+) {
     val rearOn = (s.rearFan ?: 0) > 0
+    val rearAuto = (s.rearAuto ?: 0) != 0
     val key: (() -> Unit) -> Unit = { action -> onInteract(); action() }
-    Card("REAR", colors, modifier) {
-        Column(
-            Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = 24.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    tempLabel(s.rearTemp, s.rearLo, s.rearHi, s.tempUnit),
-                    color = if (rearOn) colors.text else colors.dim,
-                    fontSize = 40.sp, fontWeight = FontWeight.Light, maxLines = 1,
-                    modifier = Modifier.weight(1f)
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StepButton(Icons.Default.KeyboardArrowUp, colors, size = 40.dp) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_UP) } }
-                    StepButton(Icons.Default.KeyboardArrowDown, colors, size = 40.dp) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_DOWN) } }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Temperature
+            Card("REAR TEMP", colors, Modifier.weight(1f).fillMaxHeight()) {
+                Row(
+                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 22.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        tempLabel(s.rearTemp, s.rearLo, s.rearHi, s.tempUnit),
+                        color = if (rearOn) colors.text else colors.dim,
+                        fontSize = 64.sp, fontWeight = FontWeight.Light, textAlign = TextAlign.Center,
+                        maxLines = 1, modifier = Modifier.weight(1f)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StepButton(Icons.Default.KeyboardArrowUp, colors) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_UP) } }
+                        StepButton(Icons.Default.KeyboardArrowDown, colors) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_DOWN) } }
+                    }
                 }
             }
-            Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StepButton(Icons.Default.Remove, colors, size = 40.dp) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_DOWN) } }
-                FanBars(level = s.rearFan ?: 0, colors = colors, modifier = Modifier.weight(1f).height(32.dp))
-                StepButton(Icons.Default.Add, colors, size = 40.dp) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_UP) } }
-            }
-            Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                val auto = (s.rearAuto ?: 0) != 0
-                MiniTile(colors, auto, Modifier.weight(1f), onClick = {
-                    key { TwMcu.toggle(TwMcu.KEY_REAR_AUTO, auto) }
-                }) { tint -> Icon(painterResource(R.drawable.hvac_auto), "Rear auto", tint = tint, modifier = Modifier.size(28.dp)) }
-                MiniTile(colors, false, Modifier.weight(1f), onClick = {
-                    key { TwMcu.sendKey(TwMcu.KEY_REAR_MODE, TwMcu.ON) }
-                }) { tint ->
-                    val icon = modeIcon(s.rearMode)
-                    if (icon != null) Icon(painterResource(icon), "Rear airflow", tint = tint, modifier = Modifier.size(28.dp))
-                    else Text("MODE", color = tint, fontSize = 10.sp)
+            // Fan
+            Card("REAR FAN", colors, Modifier.weight(1.2f).fillMaxHeight()) {
+                Column(
+                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StepButton(Icons.Default.Remove, colors) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_DOWN) } }
+                        FanBars(level = s.rearFan ?: 0, colors = colors, modifier = Modifier.weight(1f).height(56.dp))
+                        StepButton(Icons.Default.Add, colors) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_UP) } }
+                    }
+                    Text(
+                        when {
+                            s.rearFan == null -> "--"
+                            !rearOn -> "OFF"
+                            rearAuto -> "AUTO  ·  ${s.rearFan}"
+                            else -> "SPEED ${s.rearFan}"
+                        },
+                        color = colors.text, fontSize = 16.sp, letterSpacing = 2.sp
+                    )
                 }
-                MiniTile(colors, rearOn, Modifier.weight(1f), onClick = {
-                    key { TwMcu.toggle(TwMcu.KEY_REAR_POWER, rearOn) }
-                }) { tint -> Icon(Icons.Default.PowerSettingsNew, "Rear on/off", tint = tint, modifier = Modifier.size(24.dp)) }
+            }
+            // Airflow
+            Card("REAR AIRFLOW", colors, Modifier.weight(1f).fillMaxHeight()) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .clickable { key { TwMcu.sendKey(TwMcu.KEY_REAR_MODE, TwMcu.ON) } }
+                        .padding(horizontal = 16.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    modeIcon(s.rearMode)?.let {
+                        Icon(painterResource(it), null, tint = colors.text, modifier = Modifier.size(96.dp))
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    Text(modeName(s.rearMode), color = colors.text, fontSize = 14.sp, letterSpacing = 2.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text("TAP TO CHANGE", color = colors.dim, fontSize = 9.sp, letterSpacing = 2.sp)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().height(72.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ToggleTile(Toggle("FRONT", icon = Icons.Default.ArrowBack, on = false, cmd = Cmd.POWER), colors, Modifier.weight(1f).fillMaxHeight()) { onBack() }
+            ToggleTile(Toggle("REAR AUTO", res = R.drawable.hvac_auto, on = rearAuto, cmd = Cmd.POWER), colors, Modifier.weight(1f).fillMaxHeight()) {
+                key { TwMcu.toggle(TwMcu.KEY_REAR_AUTO, rearAuto) }
+            }
+            ToggleTile(Toggle(if (rearOn) "REAR ON" else "REAR OFF", icon = Icons.Default.PowerSettingsNew, on = rearOn, cmd = Cmd.POWER), colors, Modifier.weight(1f).fillMaxHeight()) {
+                key { TwMcu.toggle(TwMcu.KEY_REAR_POWER, rearOn) }
             }
         }
     }
-}
-
-@Composable
-private fun MiniTile(
-    colors: ClimateColors,
-    on: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit,
-    content: @Composable (Color) -> Unit
-) {
-    Box(
-        modifier
-            .fillMaxHeight()
-            .background(if (on) colors.accent.copy(alpha = 0.18f) else Color.Transparent, CARD_SHAPE)
-            .border(1.dp, if (on) colors.accent else colors.cardBorder, CARD_SHAPE)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) { content(if (on) colors.accent else colors.text) }
 }
 
 @Composable
