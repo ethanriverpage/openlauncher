@@ -102,6 +102,7 @@ data class AppSettings(
     val showTripTracker: Boolean = false,
     val compassOffset: Float = 0f,
     val showSoundboard: Boolean = false,
+    val showClimate: Boolean = false,
     val soundboardPads: List<SoundPadConfig> = defaultSoundboardPads(),
     val vitalsAsBars: Boolean = false,
     val speedometerDigitalOnly: Boolean = false,
@@ -133,6 +134,7 @@ fun AppSettings.activeWidgetIds(): Set<String> = buildSet {
     if (showVitals) add("VITALS")
     if (showTripTracker) add("TRIP_TRACKER")
     if (showSoundboard) add("SOUNDBOARD")
+    if (showClimate) add("CLIMATE")
 }
 
 /**

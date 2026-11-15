@@ -35,6 +35,8 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- TW head unit A/C service (ClimateWidget binds com.tw.ac.AirService) -->
+        <package android:name="com.tw.ac" />
     </queries>
 
     <application

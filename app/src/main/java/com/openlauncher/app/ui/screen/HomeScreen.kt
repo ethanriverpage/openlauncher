@@ -64,7 +64,8 @@ private val ALL_WIDGET_TYPES = listOf(
     WidgetTypeInfo("SPEEDOMETER", "SPEED",       Icons.Default.Speed,         "GPS speed"),
     WidgetTypeInfo("VITALS",      "VITALS",      Icons.Default.Dns,           "Head Unit Health / Vitals"),
     WidgetTypeInfo("TRIP_TRACKER", "TRIP TRACKER", Icons.Default.Map,          "Trip logs & stats"),
-    WidgetTypeInfo("SOUNDBOARD",  "SOUNDBOARD",  Icons.Default.Piano,         "Custom sound pads")
+    WidgetTypeInfo("SOUNDBOARD",  "SOUNDBOARD",  Icons.Default.Piano,         "Custom sound pads"),
+    WidgetTypeInfo("CLIMATE",     "CLIMATE",     Icons.Default.AcUnit,        "Vehicle A/C (TW head units)")
 )
 
 private fun canAddWidget(settings: com.openlauncher.app.data.AppSettings): Boolean {
@@ -78,6 +79,7 @@ private fun canAddWidget(settings: com.openlauncher.app.data.AppSettings): Boole
         if (settings.showVitals) add("VITALS")
         if (settings.showTripTracker) add("TRIP_TRACKER")
         if (settings.showSoundboard) add("SOUNDBOARD")
+        if (settings.showClimate) add("CLIMATE")
     }
     val activeWidgets = settings.widgetLayout.filter { it.enabled && it.id in visibleIds }
     val occupied = buildSet<Pair<Int, Int>> {
@@ -243,6 +245,7 @@ fun HomeScreen(
                 if (settings.showVitals) add("VITALS")
                 if (settings.showTripTracker) add("TRIP_TRACKER")
                 if (settings.showSoundboard) add("SOUNDBOARD")
+                if (settings.showClimate) add("CLIMATE")
             }
 
             // Keep only visible widgets exactly as configured in settings, allowing explicit resizing to dictate layout
@@ -318,6 +321,7 @@ fun HomeScreen(
                     "SPEEDOMETER" -> "SPEED"
                     "TRIP_TRACKER" -> "TRIP"
                     "SOUNDBOARD"  -> "SOUND"
+                    "CLIMATE"     -> "CLIMATE"
                     else          -> w.id
                 }
 
@@ -462,6 +466,11 @@ fun HomeScreen(
                         "TRIP_TRACKER" -> TripTrackerWidget(
                             location  = location,
                             isMetric  = settings.unitSystem == com.openlauncher.app.data.UnitSystem.METRIC,
+                            accent    = accent,
+                            isDayMode = isDayMode,
+                            modifier  = Modifier.fillMaxSize()
+                        )
+                        "CLIMATE" -> ClimateWidget(
                             accent    = accent,
                             isDayMode = isDayMode,
                             modifier  = Modifier.fillMaxSize()
@@ -839,6 +848,7 @@ private fun WidgetLibraryDialog(
         if (settings.showVitals) add("VITALS")
         if (settings.showTripTracker) add("TRIP_TRACKER")
         if (settings.showSoundboard) add("SOUNDBOARD")
+        if (settings.showClimate) add("CLIMATE")
     }
     val canAdd = canAddWidget(settings)
 

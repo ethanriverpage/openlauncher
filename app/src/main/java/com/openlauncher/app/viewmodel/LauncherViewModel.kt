@@ -219,6 +219,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 "VITALS"      -> copy(showVitals = true)
                 "TRIP_TRACKER" -> copy(showTripTracker = true)
                 "SOUNDBOARD"  -> copy(showSoundboard = true)
+                "CLIMATE"     -> copy(showClimate = true)
                 else          -> this
             }
             val idx       = layout.indexOfFirst { it.id == id }
@@ -250,6 +251,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 "VITALS"      -> copy(showVitals = false)
                 "TRIP_TRACKER" -> copy(showTripTracker = false)
                 "SOUNDBOARD"  -> copy(showSoundboard = false)
+                "CLIMATE"     -> copy(showClimate = false)
                 else          -> this
             }
         }
