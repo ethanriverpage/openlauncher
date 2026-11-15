@@ -72,5 +72,19 @@ object TwMcu {
     }
 
     fun toggle(key: Int, currentlyOn: Boolean) = sendKey(key, if (currentlyOn) OFF else ON)
+
+    /**
+     * Momentary key that steps through states (e.g. airflow mode). com.tw.ac alternates the
+     * second byte 0xCC/0x22 on every press of such a key; the MCU needs the change to see a
+     * new press.
+     */
+    private val lastPress = mutableMapOf<Int, Int>()
+
+    @Synchronized
+    fun press(key: Int): Boolean {
+        val b2 = if (lastPress[key] == OFF) ON else OFF
+        lastPress[key] = b2
+        return sendKey(key, b2)
+    }
     fun step(key: Int) = sendKey(key, STEP)
 }

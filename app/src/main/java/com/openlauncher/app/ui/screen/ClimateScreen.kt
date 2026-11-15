@@ -218,15 +218,6 @@ private fun FanCard(s: ClimateState, off: Boolean, colors: ClimateColors, modifi
                 FanBars(level = s.fan ?: 0, colors = colors, modifier = Modifier.weight(1f).height(56.dp))
                 StepButton(Icons.Default.Add, colors) { send(Cmd.FAN_UP) }
             }
-            Text(
-                when {
-                    s.fan == null -> "--"
-                    off -> "OFF"
-                    (s.auto ?: 0) != 0 -> "AUTO  ·  ${s.fan}"
-                    else -> "SPEED ${s.fan}"
-                },
-                color = colors.text, fontSize = 16.sp, letterSpacing = 2.sp
-            )
             Box(
                 Modifier
                     .height(56.dp).fillMaxWidth()
@@ -234,12 +225,8 @@ private fun FanCard(s: ClimateState, off: Boolean, colors: ClimateColors, modifi
                     .clickable { send(Cmd.MODE_CYCLE) },
                 contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    modeIcon(s.mode)?.let {
-                        Icon(painterResource(it), null, tint = colors.text, modifier = Modifier.size(36.dp))
-                        Spacer(Modifier.width(10.dp))
-                    }
-                    Text(modeName(s.mode), color = colors.text, fontSize = 13.sp, letterSpacing = 2.sp)
+                modeIcon(s.mode)?.let {
+                    Icon(painterResource(it), modeName(s.mode), tint = colors.text, modifier = Modifier.size(44.dp))
                 }
             }
         }
@@ -293,15 +280,6 @@ private fun RearPanel(
                         FanBars(level = s.rearFan ?: 0, colors = colors, modifier = Modifier.weight(1f).height(56.dp))
                         StepButton(Icons.Default.Add, colors) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_UP) } }
                     }
-                    Text(
-                        when {
-                            s.rearFan == null -> "--"
-                            !rearOn -> "OFF"
-                            rearAuto -> "AUTO  ·  ${s.rearFan}"
-                            else -> "SPEED ${s.rearFan}"
-                        },
-                        color = colors.text, fontSize = 16.sp, letterSpacing = 2.sp
-                    )
                 }
             }
             // Airflow
@@ -309,18 +287,14 @@ private fun RearPanel(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .clickable { key { TwMcu.sendKey(TwMcu.KEY_REAR_MODE, TwMcu.ON) } }
+                        .clickable { key { TwMcu.press(TwMcu.KEY_REAR_MODE) } }
                         .padding(horizontal = 16.dp, vertical = 22.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    modeIcon(s.rearMode)?.let {
-                        Icon(painterResource(it), null, tint = colors.text, modifier = Modifier.size(96.dp))
-                        Spacer(Modifier.height(12.dp))
-                    }
-                    Text(modeName(s.rearMode), color = colors.text, fontSize = 14.sp, letterSpacing = 2.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Text("TAP TO CHANGE", color = colors.dim, fontSize = 9.sp, letterSpacing = 2.sp)
+                    // The car doesn't report the rear vent mode (the only "rear mode" value
+                    // com.tw.ac emits is an echo of the front), so this is a plain mode key.
+                    Icon(painterResource(R.drawable.hvac_mode_face_floor), "Rear airflow", tint = colors.text, modifier = Modifier.size(96.dp))
                 }
             }
         }
@@ -402,8 +376,8 @@ private fun ToggleTile(t: Toggle, colors: ClimateColors, modifier: Modifier, onC
             val tint = if (t.on) colors.accent else colors.dim
             Box {
                 when {
-                    t.res != null -> Icon(painterResource(t.res), t.label, tint = tint, modifier = Modifier.size(32.dp))
-                    t.icon != null -> Icon(t.icon, t.label, tint = tint, modifier = Modifier.size(26.dp))
+                    t.res != null -> Icon(painterResource(t.res), t.label, tint = tint, modifier = Modifier.size(44.dp))
+                    t.icon != null -> Icon(t.icon, t.label, tint = tint, modifier = Modifier.size(34.dp))
                 }
                 t.badge?.let {
                     Text(
@@ -412,8 +386,6 @@ private fun ToggleTile(t: Toggle, colors: ClimateColors, modifier: Modifier, onC
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            Text(t.label, color = if (t.on) colors.text else colors.dim, fontSize = 11.sp, letterSpacing = 2.sp)
         }
     }
 }
