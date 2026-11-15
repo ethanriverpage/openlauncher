@@ -11,6 +11,11 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Parcel
 import android.util.Log
+import android.os.SystemClock
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -65,6 +70,30 @@ class TwClimateClient(context: Context) {
     private var bound = false
     private var refCount = 0
 
+    /**
+     * Emits when the climate state changes in a way that only a person pressing a control
+     * produces (see [ClimateFocusPolicy]). Used to bring the climate UI forward.
+     */
+    private val _userChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val userChanges: SharedFlow<Unit> = _userChanges.asSharedFlow()
+
+    /** Ignore the full-state re-push that follows (re)registration. */
+    @Volatile private var armedAtMs = Long.MAX_VALUE
+    private val stateLock = Any()
+
+    private fun apply(transform: ClimateState.() -> ClimateState) {
+        val (prev, next) = synchronized(stateLock) {
+            val p = _state.value
+            val n = p.transform()
+            _state.value = n
+            p to n
+        }
+        if (SystemClock.uptimeMillis() >= armedAtMs && ClimateFocusPolicy.isUserChange(prev, next)) {
+            Log.d(TAG, "user climate change detected")
+            _userChanges.tryEmit(Unit)
+        }
+    }
+
     /** Controller transaction codes (IAirConditionController). */
     enum class Cmd(val code: Int) {
         POWER(4), AC(5), AUTO(6), DUAL(7), FRONT_DEFROST(8), REAR_DEFROST(9), MAX_AC(10),
@@ -98,34 +127,34 @@ class TwClimateClient(context: Context) {
 
     private fun handleCallback(code: Int, p: Parcel) {
         when (code) {
-            6  -> p.readInt().let { v -> _state.update { it.copy(power = v) } }
-            7  -> p.readInt().let { v -> _state.update { it.copy(ac = v) } }
-            5  -> p.readInt().let { v -> _state.update { it.copy(recirc = v) } }
-            8  -> p.readInt().let { v -> _state.update { it.copy(auto = v) } }
-            9  -> p.readInt().let { v -> _state.update { it.copy(dual = v) } }
-            10 -> p.readInt().let { v -> _state.update { it.copy(frontDefrost = v) } }
-            11 -> p.readInt().let { v -> _state.update { it.copy(rearDefrost = v) } }
-            4  -> p.readInt().let { v -> _state.update { it.copy(fan = v) } }
-            1  -> p.readFloat().let { v -> _state.update { it.copy(leftTemp = v) } }
-            2  -> p.readFloat().let { v -> _state.update { it.copy(rightTemp = v) } }
-            47 -> p.readString().let { v -> _state.update { it.copy(tempUnit = v) } }
-            39 -> (p.readInt() != 0).let { v -> _state.update { it.copy(leftLo = v) } }
-            40 -> (p.readInt() != 0).let { v -> _state.update { it.copy(leftHi = v) } }
-            41 -> (p.readInt() != 0).let { v -> _state.update { it.copy(rightLo = v) } }
-            42 -> (p.readInt() != 0).let { v -> _state.update { it.copy(rightHi = v) } }
-            3  -> p.readInt().let { v -> _state.update { it.copy(mode = v) } }
-            49 -> p.readInt().let { v -> _state.update { it.copy(sync = v) } }
-            13 -> p.readInt().let { v -> _state.update { it.copy(seatHeatLeft = v) } }
-            14 -> p.readInt().let { v -> _state.update { it.copy(seatHeatRight = v) } }
-            15 -> p.readInt().let { v -> _state.update { it.copy(seatVentLeft = v) } }
-            16 -> p.readInt().let { v -> _state.update { it.copy(seatVentRight = v) } }
+            6  -> p.readInt().let { v -> apply { copy(power = v) } }
+            7  -> p.readInt().let { v -> apply { copy(ac = v) } }
+            5  -> p.readInt().let { v -> apply { copy(recirc = v) } }
+            8  -> p.readInt().let { v -> apply { copy(auto = v) } }
+            9  -> p.readInt().let { v -> apply { copy(dual = v) } }
+            10 -> p.readInt().let { v -> apply { copy(frontDefrost = v) } }
+            11 -> p.readInt().let { v -> apply { copy(rearDefrost = v) } }
+            4  -> p.readInt().let { v -> apply { copy(fan = v) } }
+            1  -> p.readFloat().let { v -> apply { copy(leftTemp = v) } }
+            2  -> p.readFloat().let { v -> apply { copy(rightTemp = v) } }
+            47 -> p.readString().let { v -> apply { copy(tempUnit = v) } }
+            39 -> (p.readInt() != 0).let { v -> apply { copy(leftLo = v) } }
+            40 -> (p.readInt() != 0).let { v -> apply { copy(leftHi = v) } }
+            41 -> (p.readInt() != 0).let { v -> apply { copy(rightLo = v) } }
+            42 -> (p.readInt() != 0).let { v -> apply { copy(rightHi = v) } }
+            3  -> p.readInt().let { v -> apply { copy(mode = v) } }
+            49 -> p.readInt().let { v -> apply { copy(sync = v) } }
+            13 -> p.readInt().let { v -> apply { copy(seatHeatLeft = v) } }
+            14 -> p.readInt().let { v -> apply { copy(seatHeatRight = v) } }
+            15 -> p.readInt().let { v -> apply { copy(seatVentLeft = v) } }
+            16 -> p.readInt().let { v -> apply { copy(seatVentRight = v) } }
             38 -> if (p.readInt() != 0) {
                 val b = Bundle.CREATOR.createFromParcel(p)
                 val add = b.keySet().mapNotNull { k ->
                     @Suppress("DEPRECATION")
                     (b.get(k) as? Number)?.let { k to it }
                 }.toMap()
-                if (add.isNotEmpty()) _state.update { it.copy(extras = it.extras + add) }
+                if (add.isNotEmpty()) apply { copy(extras = extras + add) }
             }
             else -> Log.v(TAG, "unhandled callback code $code")
         }
@@ -136,6 +165,7 @@ class TwClimateClient(context: Context) {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             remote = service
+            armedAtMs = SystemClock.uptimeMillis() + ARM_DELAY_MS
             _state.update { it.copy(connected = service != null) }
             // Register → service re-pushes full state (model.e()).
             transact(CODE_REGISTER) { it.writeStrongBinder(callback) }
@@ -143,12 +173,14 @@ class TwClimateClient(context: Context) {
 
         override fun onServiceDisconnected(name: ComponentName?) {
             remote = null
+            armedAtMs = Long.MAX_VALUE
             _state.value = ClimateState(connected = false)
             // Service may restart (it is persistent); the system rebinds automatically.
         }
 
         override fun onBindingDied(name: ComponentName?) {
             remote = null
+            armedAtMs = Long.MAX_VALUE
             _state.value = ClimateState(connected = false)
             unbindInternal()
             main.postDelayed({ if (refCount > 0) bindInternal() }, 3000)
@@ -168,6 +200,7 @@ class TwClimateClient(context: Context) {
             transact(CODE_UNREGISTER) { it.writeStrongBinder(callback) }
             unbindInternal()
             remote = null
+            armedAtMs = Long.MAX_VALUE
             _state.value = ClimateState(connected = false)
         }
     }
@@ -224,6 +257,7 @@ class TwClimateClient(context: Context) {
         private const val RECEIVE_DESCRIPTOR = "com.tw.ac.IAirConditionReceive"
         private const val CODE_REGISTER = 2
         private const val CODE_UNREGISTER = 3
+        private const val ARM_DELAY_MS = 3000L
 
         @Volatile private var instance: TwClimateClient? = null
         fun get(context: Context): TwClimateClient =

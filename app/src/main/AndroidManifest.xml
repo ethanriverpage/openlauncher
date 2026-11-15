@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
+    <!-- Lets the climate pop-over open while another app (e.g. CarPlay) is in front -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Broadcast permission for MCU head unit event service -->
     <uses-permission android:name="com.szchoiceway.permission.broadcast" />
 
@@ -76,6 +79,19 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Climate pop-over shown above other apps when a physical HVAC control is
+             pressed. Own task + no history so dismissing returns to the app underneath. -->
+        <activity
+            android:name=".climate.ClimateOverlayActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.openlauncher.app.climate"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
 
     </application>
 

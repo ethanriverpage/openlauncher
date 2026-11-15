@@ -6,6 +6,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.openlauncher.app.climate.ClimateOverlayActivity
+import com.openlauncher.app.climate.ClimateUiState
+import com.openlauncher.app.climate.TwClimateClient
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -33,6 +39,13 @@ class MainActivity : ComponentActivity() {
 
     private val vm: LauncherViewModel by viewModels()
 
+    // TW head-unit climate (com.tw.ac). Kept bound for the activity's lifetime so
+    // physical HVAC presses can bring the climate UI forward even from another app.
+    private val climate by lazy { TwClimateClient.get(this) }
+    private val hasClimate by lazy {
+        try { packageManager.getPackageInfo(TwClimateClient.SERVICE_PKG, 0); true } catch (_: Exception) { false }
+    }
+
     private val locationPermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted ->
@@ -59,6 +72,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         hideSystemBars()
 
+        if (hasClimate) {
+            climate.start()
+            lifecycleScope.launch {
+                climate.userChanges.collect { onPhysicalClimateInput() }
+            }
+        }
+
         setContent {
             val settingsLoaded by vm.settingsLoaded.collectAsStateWithLifecycle()
             val settings       by vm.settings.collectAsStateWithLifecycle()
@@ -75,6 +95,7 @@ class MainActivity : ComponentActivity() {
             val hardwareRadio by vm.hardwareRadio.collectAsStateWithLifecycle()
             val systemIsDark = isSystemInDarkTheme()
             val isDayMode = if (settings.dayNightMode == DayNightMode.SYSTEM) !systemIsDark else isDayModeVM
+            SideEffect { ClimateUiState.isDayMode = isDayMode }
             val pickerSlot      by vm.shortcutPickerSlot.collectAsStateWithLifecycle()
             val appPickerTarget by vm.appPickerTarget.collectAsStateWithLifecycle()
 
@@ -153,6 +174,7 @@ class MainActivity : ComponentActivity() {
                                     currentDest   = nav,
                                     settings      = settings,
                                     isHorizontal  = isBottomBar,
+                                    showClimate   = hasClimate,
                                     installedIconFor = { pkg ->
                                         apps.find { it.packageName == pkg }?.icon
                                     },
@@ -256,6 +278,12 @@ class MainActivity : ComponentActivity() {
                                         onUpdate = { block -> vm.updateSettings(block) },
                                         onReset  = { vm.resetSettings() }
                                     )
+
+                                    NavDestination.CLIMATE -> ClimateScreen(
+                                        accent       = accent,
+                                        isDayMode    = isDayMode,
+                                        hasWallpaper = settings.wallpaperUri.isNotEmpty()
+                                    )
                                 }
                             }
                         }
@@ -290,6 +318,22 @@ class MainActivity : ComponentActivity() {
             }
             } // CompositionLocalProvider
         }
+    }
+
+    /** A physical HVAC control was pressed: show climate without stealing focus otherwise. */
+    private fun onPhysicalClimateInput() {
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            vm.navigate(NavDestination.CLIMATE)
+        } else {
+            try { ClimateOverlayActivity.show(this) } catch (e: Exception) {
+                android.util.Log.w("OpenLauncher", "climate overlay blocked", e)
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        if (hasClimate) climate.stop()
+        super.onDestroy()
     }
 
     override fun onResume() {

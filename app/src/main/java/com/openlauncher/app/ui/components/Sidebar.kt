@@ -57,6 +57,7 @@ fun Sidebar(
     onShortcutSetIcon: (Int, DefaultShortcutIcon?) -> Unit,
     onReorder: (from: Int, to: Int) -> Unit,
     isHorizontal: Boolean = false,
+    showClimate: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val isDayMode    = LocalDayMode.current
@@ -126,6 +127,15 @@ fun Sidebar(
     }
 
     val navButtons: @Composable () -> Unit = {
+        if (showClimate) NavButton(
+            icon         = Icons.Default.AcUnit,
+            label        = "Climate",
+            isActive     = currentDest == NavDestination.CLIMATE,
+            accent       = accent,
+            iconInactive = iconInactive,
+            isHorizontal = isHorizontal,
+            onClick      = { onNavigate(NavDestination.CLIMATE) }
+        )
         NavButton(
             icon         = Icons.Default.Apps,
             label        = "Apps",
@@ -169,7 +179,7 @@ fun Sidebar(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxHeight()
-                    .padding(horizontal = 150.dp)
+                    .padding(horizontal = if (showClimate) 200.dp else 150.dp)
                     .horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -187,7 +197,9 @@ fun Sidebar(
                     NavButton(Icons.Default.Home,     "Home",     currentDest == NavDestination.HOME,        accent, iconInactive, true) { onNavigate(NavDestination.HOME) }
                     NavButton(Icons.Default.Settings, "Settings", currentDest == NavDestination.SETTINGS,    accent, iconInactive, true) { onNavigate(NavDestination.SETTINGS) }
                     NavButton(Icons.Default.Apps,     "Apps",     currentDest == NavDestination.APP_LIBRARY, accent, iconInactive, true) { onNavigate(NavDestination.APP_LIBRARY) }
+                    if (showClimate) NavButton(Icons.Default.AcUnit, "Climate", currentDest == NavDestination.CLIMATE, accent, iconInactive, true) { onNavigate(NavDestination.CLIMATE) }
                 } else {
+                    if (showClimate) NavButton(Icons.Default.AcUnit, "Climate", currentDest == NavDestination.CLIMATE, accent, iconInactive, true) { onNavigate(NavDestination.CLIMATE) }
                     NavButton(Icons.Default.Apps,     "Apps",     currentDest == NavDestination.APP_LIBRARY, accent, iconInactive, true) { onNavigate(NavDestination.APP_LIBRARY) }
                     NavButton(Icons.Default.Settings, "Settings", currentDest == NavDestination.SETTINGS,    accent, iconInactive, true) { onNavigate(NavDestination.SETTINGS) }
                     NavButton(Icons.Default.Home,     "Home",     currentDest == NavDestination.HOME,        accent, iconInactive, true) { onNavigate(NavDestination.HOME) }

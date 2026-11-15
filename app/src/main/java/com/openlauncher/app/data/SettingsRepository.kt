@@ -54,7 +54,6 @@ class SettingsRepository(private val context: Context) {
         val SHOW_TRIP_TRACKER     = booleanPreferencesKey("show_trip_tracker")
         val COMPASS_OFFSET        = floatPreferencesKey("compass_offset")
         val SHOW_SOUNDBOARD       = booleanPreferencesKey("show_soundboard")
-        val SHOW_CLIMATE          = booleanPreferencesKey("show_climate")
         val SOUNDBOARD_PADS_JSON  = stringPreferencesKey("soundboard_pads_json")
         val VITALS_AS_BARS        = booleanPreferencesKey("vitals_as_bars")
         val SPEEDOMETER_DIGITAL_ONLY = booleanPreferencesKey("speedometer_digital_only")
@@ -127,7 +126,6 @@ class SettingsRepository(private val context: Context) {
                 showTripTracker  = prefs[Keys.SHOW_TRIP_TRACKER] ?: defaults.showTripTracker,
                 compassOffset    = prefs[Keys.COMPASS_OFFSET]    ?: defaults.compassOffset,
                 showSoundboard   = prefs[Keys.SHOW_SOUNDBOARD]   ?: defaults.showSoundboard,
-                showClimate      = prefs[Keys.SHOW_CLIMATE]      ?: defaults.showClimate,
                 soundboardPads   = prefs[Keys.SOUNDBOARD_PADS_JSON]?.let {
                     runCatching {
                         gson.fromJson<List<SoundPadConfig>>(it, object : com.google.gson.reflect.TypeToken<List<SoundPadConfig>>() {}.type)
@@ -188,7 +186,6 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.SHOW_TRIP_TRACKER]  = s.showTripTracker
             prefs[Keys.COMPASS_OFFSET]     = s.compassOffset
             prefs[Keys.SHOW_SOUNDBOARD]    = s.showSoundboard
-            prefs[Keys.SHOW_CLIMATE]       = s.showClimate
             prefs[Keys.SOUNDBOARD_PADS_JSON] = gson.toJson(s.soundboardPads)
             prefs[Keys.VITALS_AS_BARS]     = s.vitalsAsBars
             prefs[Keys.SPEEDOMETER_DIGITAL_ONLY] = s.speedometerDigitalOnly
