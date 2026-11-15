@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -40,7 +41,8 @@ data class ClimateColors(
 fun climateColors(accent: Color, isDayMode: Boolean, hasWallpaper: Boolean): ClimateColors {
     val onBg = MaterialTheme.colorScheme.onBackground
     return ClimateColors(
-        accent     = accent,
+        // A light accent (e.g. the default white) disappears on day-mode white cards
+        accent     = if (isDayMode && accent.luminance() > 0.6f) Color(0xFF111111) else accent,
         cardBg     = when {
             isDayMode    -> Color(0xFFFFFFFF)
             hasWallpaper -> Color(0xCC000000)
