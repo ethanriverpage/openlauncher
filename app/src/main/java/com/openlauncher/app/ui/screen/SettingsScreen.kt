@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.platform.LocalContext
+import com.openlauncher.app.util.computeAutoUiScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.data.AppFont
@@ -642,10 +643,35 @@ fun SettingsScreen(
 
             SettingsDivider()
 
+            SettingsRow(
+                label    = "Auto-fit UI",
+                sublabel = "Scale the UI to this screen's resolution & size",
+                icon     = Icons.Default.AspectRatio
+            ) {
+                Switch(
+                    checked         = settings.autoScale,
+                    onCheckedChange = { onUpdate { copy(autoScale = it) } },
+                    colors          = switchColors(accent)
+                )
+            }
+
+            SettingsDivider()
+
             Column {
+                val ctx = LocalContext.current
+                val autoBase = remember(settings.autoScale) {
+                    if (settings.autoScale) {
+                        val dm = ctx.resources.displayMetrics
+                        computeAutoUiScale(dm.widthPixels, dm.heightPixels, dm.density, dm.xdpi, dm.ydpi)
+                    } else 1f
+                }
+                val effectiveUi = autoBase * settings.uiScale
                 SettingsRow(
-                    label    = "UI Scale",
-                    sublabel = "${"%.0f".format(settings.uiScale * 100)}%  — scales all elements",
+                    label    = if (settings.autoScale) "UI Scale (trim)" else "UI Scale",
+                    sublabel = if (settings.autoScale)
+                        "Auto ${"%.0f".format(autoBase * 100)}% × ${"%.0f".format(settings.uiScale * 100)}% = ${"%.0f".format(effectiveUi * 100)}%"
+                    else
+                        "${"%.0f".format(settings.uiScale * 100)}%  — scales all elements",
                     icon     = Icons.Default.ZoomIn
                 ) {}
                 Slider(
