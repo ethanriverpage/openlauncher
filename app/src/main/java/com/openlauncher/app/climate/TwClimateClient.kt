@@ -71,6 +71,17 @@ val ClimateState.intake: Intake?
         }
     }
 
+/**
+ * Rear set temperature as shown on the car's rear panel. com.tw.ac's F40 conversion
+ * (Start_f 31, Step_f 1) reads 3 °F low on the 2010 GX460 (panel 70 = reported 67).
+ * Only the °F offset has been observed; °C is passed through unchanged.
+ */
+val ClimateState.rearTempDisplay: Float?
+    get() = rearTemp?.let { t -> if (isFahrenheit(tempUnit)) t + 3f else t }
+
+/** The service reports the unit as "℉" (U+2109) on this unit; accept "°F"/"F" too. */
+private fun isFahrenheit(unit: String?) = unit != null && (unit.contains('\u2109') || unit.contains('F'))
+
 /** Airflow mode (Feature 17) as reported on the 2010 GX460. */
 fun modeName(mode: Int?): String = when (mode) {
     null -> "--"

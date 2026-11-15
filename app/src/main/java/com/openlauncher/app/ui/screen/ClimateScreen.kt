@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.openlauncher.app.climate.ClimateState
 import com.openlauncher.app.climate.Intake
 import com.openlauncher.app.climate.intake
+import com.openlauncher.app.climate.rearTempDisplay
 import com.openlauncher.app.climate.modeName
 import com.openlauncher.app.climate.TwClimateClient
 import com.openlauncher.app.climate.TwMcu
@@ -257,7 +258,7 @@ private fun RearPanel(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        tempLabel(s.rearTemp, s.rearLo, s.rearHi, s.tempUnit),
+                        tempLabel(s.rearTempDisplay, s.rearLo, s.rearHi, s.tempUnit),
                         color = if (rearOn) colors.text else colors.dim,
                         fontSize = 64.sp, fontWeight = FontWeight.Light, textAlign = TextAlign.Center,
                         maxLines = 1, modifier = Modifier.weight(1f)

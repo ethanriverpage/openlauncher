@@ -26,7 +26,8 @@ object TwMcu {
     const val KEY_REAR_TEMP_DOWN = 0x34
     const val KEY_REAR_FAN_UP = 0x2D
     const val KEY_REAR_FAN_DOWN = 0x2E
-    const val KEY_REAR_MODE = 0x2F
+    // 0x2F (F50 in AirConfig) is ignored by the GX460; trying F68's key.
+    const val KEY_REAR_MODE = 0x2A
     const val KEY_REAR_POWER = 0x30          // stock UI: "Rear on"
     const val KEY_REAR_AUTO = 0x31
 
