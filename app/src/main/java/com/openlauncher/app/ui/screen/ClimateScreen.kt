@@ -17,6 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.annotation.DrawableRes
+import com.openlauncher.app.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -211,15 +214,18 @@ private fun FanCard(s: ClimateState, off: Boolean, colors: ClimateColors, modifi
             )
             Box(
                 Modifier
-                    .height(44.dp).fillMaxWidth()
+                    .height(56.dp).fillMaxWidth()
                     .border(1.dp, colors.cardBorder, CARD_SHAPE)
                     .clickable { send(Cmd.MODE_CYCLE) },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    modeName(s.mode),
-                    color = colors.text, fontSize = 13.sp, letterSpacing = 2.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    modeIcon(s.mode)?.let {
+                        Icon(painterResource(it), null, tint = colors.text, modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Text(modeName(s.mode), color = colors.text, fontSize = 13.sp, letterSpacing = 2.sp)
+                }
             }
         }
     }
@@ -241,23 +247,41 @@ private fun FanBars(level: Int, colors: ClimateColors, modifier: Modifier, max: 
 
 // ── Controls ──────────────────────────────────────────────────────────────────
 
-private data class Toggle(val label: String, val icon: ImageVector, val on: Boolean, val cmd: Cmd)
+private data class Toggle(
+    val label: String,
+    val icon: ImageVector? = null,
+    @DrawableRes val res: Int? = null,
+    val on: Boolean,
+    val cmd: Cmd,
+    val badge: String? = null,
+)
 
 private fun toggles(s: ClimateState): List<Toggle> = buildList {
     // The car's OFF key only switches the system off; any other key turns it back on.
-    add(Toggle("OFF", Icons.Default.PowerSettingsNew, s.fan == 0, Cmd.POWER))
-    s.auto?.let { add(Toggle("AUTO", Icons.Default.Autorenew, it != 0, Cmd.AUTO)) }
-    s.ac?.let { add(Toggle("A/C", Icons.Default.AcUnit, it != 0, Cmd.AC)) }
+    add(Toggle("OFF", icon = Icons.Default.PowerSettingsNew, on = s.fan == 0, cmd = Cmd.POWER))
+    s.auto?.let { add(Toggle("AUTO", res = R.drawable.hvac_auto, on = it != 0, cmd = Cmd.AUTO)) }
+    s.ac?.let { add(Toggle("A/C", res = R.drawable.hvac_ac, on = it != 0, cmd = Cmd.AC)) }
     s.intake?.let {
         when (it) {
-            Intake.RECIRC -> add(Toggle("RECIRC", Icons.Default.Loop, true, Cmd.RECIRC))
-            Intake.FRESH  -> add(Toggle("FRESH AIR", Icons.Default.Air, false, Cmd.RECIRC))
-            Intake.AUTO   -> add(Toggle("AUTO AIR", Icons.Default.Autorenew, true, Cmd.RECIRC))
+            Intake.RECIRC -> add(Toggle("RECIRC", res = R.drawable.hvac_recirc, on = true, cmd = Cmd.RECIRC))
+            Intake.FRESH  -> add(Toggle("FRESH AIR", res = R.drawable.hvac_recirc, on = false, cmd = Cmd.RECIRC))
+            Intake.AUTO   -> add(Toggle("AUTO AIR", res = R.drawable.hvac_recirc, on = true, cmd = Cmd.RECIRC, badge = "A"))
         }
     }
-    s.dual?.let { add(Toggle("DUAL", Icons.Default.People, it != 0, Cmd.DUAL)) }
-    s.frontDefrost?.let { add(Toggle("FRONT DEF", Icons.Default.Air, it != 0, Cmd.FRONT_DEFROST)) }
-    s.rearDefrost?.let { add(Toggle("REAR DEF", Icons.Default.Air, it != 0, Cmd.REAR_DEFROST)) }
+    s.dual?.let { add(Toggle("DUAL", icon = Icons.Default.People, on = it != 0, cmd = Cmd.DUAL)) }
+    s.frontDefrost?.let { add(Toggle("FRONT DEF", res = R.drawable.hvac_defrost_front, on = it != 0, cmd = Cmd.FRONT_DEFROST)) }
+    s.rearDefrost?.let { add(Toggle("REAR DEF", res = R.drawable.hvac_defrost_rear, on = it != 0, cmd = Cmd.REAR_DEFROST)) }
+}
+
+/** ISO 2575 airflow figure for the GX460's mode values. */
+@DrawableRes
+private fun modeIcon(mode: Int?): Int? = when (mode) {
+    0 -> R.drawable.hvac_defrost_front
+    1 -> R.drawable.hvac_mode_floor_defrost
+    2 -> R.drawable.hvac_mode_face
+    3 -> R.drawable.hvac_mode_face_floor
+    4 -> R.drawable.hvac_mode_floor
+    else -> null
 }
 
 @Composable
@@ -270,7 +294,19 @@ private fun ToggleTile(t: Toggle, colors: ClimateColors, modifier: Modifier, onC
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(t.icon, t.label, tint = if (t.on) colors.accent else colors.dim, modifier = Modifier.size(22.dp))
+            val tint = if (t.on) colors.accent else colors.dim
+            Box {
+                when {
+                    t.res != null -> Icon(painterResource(t.res), t.label, tint = tint, modifier = Modifier.size(32.dp))
+                    t.icon != null -> Icon(t.icon, t.label, tint = tint, modifier = Modifier.size(26.dp))
+                }
+                t.badge?.let {
+                    Text(
+                        it, color = tint, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-4).dp)
+                    )
+                }
+            }
             Spacer(Modifier.height(4.dp))
             Text(t.label, color = if (t.on) colors.text else colors.dim, fontSize = 11.sp, letterSpacing = 2.sp)
         }
