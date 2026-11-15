@@ -267,19 +267,19 @@ private fun RearCard(s: ClimateState, colors: ClimateColors, modifier: Modifier,
             }
             Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 val auto = (s.rearAuto ?: 0) != 0
-                MiniTile(colors, auto, Modifier.weight(1f)) {
+                MiniTile(colors, auto, Modifier.weight(1f), onClick = {
                     key { TwMcu.toggle(TwMcu.KEY_REAR_AUTO, auto) }
-                } { tint -> Icon(painterResource(R.drawable.hvac_auto), "Rear auto", tint = tint, modifier = Modifier.size(28.dp)) }
-                MiniTile(colors, false, Modifier.weight(1f)) {
+                }) { tint -> Icon(painterResource(R.drawable.hvac_auto), "Rear auto", tint = tint, modifier = Modifier.size(28.dp)) }
+                MiniTile(colors, false, Modifier.weight(1f), onClick = {
                     key { TwMcu.sendKey(TwMcu.KEY_REAR_MODE, TwMcu.ON) }
-                } { tint ->
+                }) { tint ->
                     val icon = modeIcon(s.rearMode)
                     if (icon != null) Icon(painterResource(icon), "Rear airflow", tint = tint, modifier = Modifier.size(28.dp))
                     else Text("MODE", color = tint, fontSize = 10.sp)
                 }
-                MiniTile(colors, rearOn, Modifier.weight(1f)) {
+                MiniTile(colors, rearOn, Modifier.weight(1f), onClick = {
                     key { TwMcu.toggle(TwMcu.KEY_REAR_POWER, rearOn) }
-                } { tint -> Icon(Icons.Default.PowerSettingsNew, "Rear on/off", tint = tint, modifier = Modifier.size(24.dp)) }
+                }) { tint -> Icon(Icons.Default.PowerSettingsNew, "Rear on/off", tint = tint, modifier = Modifier.size(24.dp)) }
             }
         }
     }
