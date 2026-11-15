@@ -22,6 +22,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.climate.ClimateState
+import com.openlauncher.app.climate.Intake
+import com.openlauncher.app.climate.intake
+import com.openlauncher.app.climate.modeName
 import com.openlauncher.app.climate.TwClimateClient
 import com.openlauncher.app.climate.TwClimateClient.Cmd
 
@@ -107,7 +110,8 @@ fun ClimatePanel(
         return
     }
 
-    val off = s.power == 0
+    // F0 (power) has no receive data on this car, so "off" is inferred from blower level 0.
+    val off = s.fan == 0
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             TempCard(
@@ -158,8 +162,6 @@ private fun TempCard(
 ) {
     val label = if (left) tempLabel(s.leftTemp, s.leftLo, s.leftHi, s.tempUnit)
                 else tempLabel(s.rightTemp, s.rightLo, s.rightHi, s.tempUnit)
-    val heat = if (left) s.seatHeatLeft else s.seatHeatRight
-    val vent = if (left) s.seatVentLeft else s.seatVentRight
     Card(title, colors, modifier) {
         Row(
             Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 22.dp),
@@ -172,16 +174,6 @@ private fun TempCard(
                     fontSize = 64.sp, fontWeight = FontWeight.Light, textAlign = TextAlign.Center,
                     maxLines = 1
                 )
-                if (heat != null || vent != null) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        heat?.let {
-                            LevelChip("HEAT", it, colors) { send(if (left) Cmd.SEAT_HEAT_LEFT else Cmd.SEAT_HEAT_RIGHT) }
-                        }
-                        vent?.let {
-                            LevelChip("VENT", it, colors) { send(if (left) Cmd.SEAT_VENT_LEFT else Cmd.SEAT_VENT_RIGHT) }
-                        }
-                    }
-                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 StepButton(Icons.Default.KeyboardArrowUp, colors) {
@@ -205,15 +197,15 @@ private fun FanCard(s: ClimateState, off: Boolean, colors: ClimateColors, modifi
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StepButton(Icons.Default.Remove, colors) { send(Cmd.FAN_DOWN) }
-                FanBars(level = if (off) 0 else (s.fan ?: 0), colors = colors, modifier = Modifier.weight(1f).height(56.dp))
+                FanBars(level = s.fan ?: 0, colors = colors, modifier = Modifier.weight(1f).height(56.dp))
                 StepButton(Icons.Default.Add, colors) { send(Cmd.FAN_UP) }
             }
             Text(
                 when {
+                    s.fan == null -> "--"
                     off -> "OFF"
-                    (s.auto ?: 0) != 0 -> "AUTO"
-                    s.fan != null -> "SPEED ${s.fan}"
-                    else -> "--"
+                    (s.auto ?: 0) != 0 -> "AUTO  ·  ${s.fan}"
+                    else -> "SPEED ${s.fan}"
                 },
                 color = colors.text, fontSize = 16.sp, letterSpacing = 2.sp
             )
@@ -225,7 +217,7 @@ private fun FanCard(s: ClimateState, off: Boolean, colors: ClimateColors, modifi
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "MODE  ${s.mode ?: "--"}",
+                    modeName(s.mode),
                     color = colors.text, fontSize = 13.sp, letterSpacing = 2.sp
                 )
             }
@@ -252,13 +244,20 @@ private fun FanBars(level: Int, colors: ClimateColors, modifier: Modifier, max: 
 private data class Toggle(val label: String, val icon: ImageVector, val on: Boolean, val cmd: Cmd)
 
 private fun toggles(s: ClimateState): List<Toggle> = buildList {
-    add(Toggle("POWER", Icons.Default.PowerSettingsNew, s.power == 1, Cmd.POWER))
+    // The car's OFF key only switches the system off; any other key turns it back on.
+    add(Toggle("OFF", Icons.Default.PowerSettingsNew, s.fan == 0, Cmd.POWER))
     s.auto?.let { add(Toggle("AUTO", Icons.Default.Autorenew, it != 0, Cmd.AUTO)) }
     s.ac?.let { add(Toggle("A/C", Icons.Default.AcUnit, it != 0, Cmd.AC)) }
-    s.recirc?.let { add(Toggle("RECIRC", Icons.Default.Loop, it != 0, Cmd.RECIRC)) }
+    s.intake?.let {
+        when (it) {
+            Intake.RECIRC -> add(Toggle("RECIRC", Icons.Default.Loop, true, Cmd.RECIRC))
+            Intake.FRESH  -> add(Toggle("FRESH AIR", Icons.Default.Air, false, Cmd.RECIRC))
+            Intake.AUTO   -> add(Toggle("AUTO AIR", Icons.Default.Autorenew, true, Cmd.RECIRC))
+        }
+    }
     s.dual?.let { add(Toggle("DUAL", Icons.Default.People, it != 0, Cmd.DUAL)) }
-    s.frontDefrost?.let { add(Toggle("FRONT", Icons.Default.Air, it != 0, Cmd.FRONT_DEFROST)) }
-    s.rearDefrost?.let { add(Toggle("REAR", Icons.Default.Air, it != 0, Cmd.REAR_DEFROST)) }
+    s.frontDefrost?.let { add(Toggle("FRONT DEF", Icons.Default.Air, it != 0, Cmd.FRONT_DEFROST)) }
+    s.rearDefrost?.let { add(Toggle("REAR DEF", Icons.Default.Air, it != 0, Cmd.REAR_DEFROST)) }
 }
 
 @Composable
@@ -287,23 +286,6 @@ private fun StepButton(icon: ImageVector, colors: ClimateColors, onClick: () -> 
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) { Icon(icon, null, tint = colors.accent, modifier = Modifier.size(28.dp)) }
-}
-
-@Composable
-private fun LevelChip(label: String, level: Int, colors: ClimateColors, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .height(30.dp)
-            .border(1.dp, if (level > 0) colors.accent else colors.cardBorder, CARD_SHAPE)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            if (level > 0) "$label $level" else label,
-            color = if (level > 0) colors.text else colors.dim, fontSize = 11.sp, letterSpacing = 1.sp
-        )
-    }
 }
 
 internal fun tempLabel(t: Float?, lo: Boolean, hi: Boolean, unit: String?): String = when {

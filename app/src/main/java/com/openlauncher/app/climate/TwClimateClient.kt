@@ -51,6 +51,29 @@ data class ClimateState(
     val extras: Map<String, Number> = emptyMap(), // generic Bundle callback (feature id -> value)
 )
 
+/** Air intake (Feature 2). Raw is 3 bits; the stock icon map is 0;1;0;1;2;2;2;2. */
+enum class Intake { FRESH, RECIRC, AUTO }
+
+val ClimateState.intake: Intake?
+    get() = recirc?.let { r ->
+        when {
+            r >= 4     -> Intake.AUTO
+            r % 2 == 1 -> Intake.RECIRC
+            else       -> Intake.FRESH
+        }
+    }
+
+/** Airflow mode (Feature 17) as reported on the 2010 GX460. */
+fun modeName(mode: Int?): String = when (mode) {
+    null -> "--"
+    0    -> "DEFROST"
+    1    -> "FLOOR + DEFROST"
+    2    -> "FACE"
+    3    -> "FACE + FLOOR"
+    4    -> "FLOOR"
+    else -> "MODE $mode"
+}
+
 /**
  * Client for the TW A/C service's AIDL interface, spoken over raw Binder transactions so no
  * .aidl files are needed. Interface mapped from decompiled com.tw.ac 261022 — see
@@ -88,6 +111,7 @@ class TwClimateClient(context: Context) {
             _state.value = n
             p to n
         }
+        logDiff(prev, next)
         if (SystemClock.uptimeMillis() >= armedAtMs && ClimateFocusPolicy.isUserChange(prev, next)) {
             Log.d(TAG, "user climate change detected")
             _userChanges.tryEmit(Unit)
@@ -101,6 +125,14 @@ class TwClimateClient(context: Context) {
         LEFT_TEMP_UP(25), LEFT_TEMP_DOWN(26), RIGHT_TEMP_UP(27), RIGHT_TEMP_DOWN(28),
         FAN_UP(32), FAN_DOWN(33), MODE_CYCLE(30),
         SEAT_HEAT_LEFT(11), SEAT_HEAT_RIGHT(12), SEAT_VENT_LEFT(13), SEAT_VENT_RIGHT(14),
+    }
+
+    /** Logs which fields changed — used to map raw values (`adb logcat -s TwClimate`). */
+    private fun logDiff(prev: ClimateState, next: ClimateState) {
+        val a = prev.toString().removePrefix("ClimateState(").removeSuffix(")").split(", ")
+        val b = next.toString().removePrefix("ClimateState(").removeSuffix(")").split(", ")
+        val diff = a.zip(b).filter { (x, y) -> x != y }.joinToString(" ") { (x, y) -> "$x -> ${y.substringAfter('=')}" }
+        if (diff.isNotEmpty()) Log.d(TAG, "state: $diff")
     }
 
     // ---- Callback binder (IAirConditionReceive) -------------------------------------------

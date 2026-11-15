@@ -9,10 +9,10 @@ package com.openlauncher.app.climate
  * Rules:
  *  - Only a change between two known values counts; a field's first report (null → value),
  *    e.g. right after connecting or ignition-on, never counts.
- *  - Setpoints and toggles always count: power, A/C, AUTO, DUAL, SYNC, defrost, temperatures,
- *    LO/HI, seat heat/vent.
- *  - Fan speed, airflow mode and recirc count only while AUTO is off — in AUTO the car changes
- *    them on its own. (Pressing fan/mode in AUTO also drops AUTO, which counts by itself.)
+ *  - Setpoints and toggles always count: A/C, AUTO, DUAL, SYNC, defrost, temperatures, LO/HI.
+ *  - Fan speed, airflow mode and intake (fresh/recirc/auto) count only while AUTO is off —
+ *    in AUTO the car changes them on its own (incl. holding the blower at 0 during cold-start
+ *    warm-up). Pressing fan/mode/OFF in AUTO also drops AUTO, which counts by itself.
  *  - Rear defrost turning *off* doesn't count: it has its own shut-off timer.
  */
 object ClimateFocusPolicy {
@@ -42,7 +42,8 @@ object ClimateFocusPolicy {
         if (!autoOn) {
             if (changed(prev.fan, next.fan)) return true
             if (changed(prev.mode, next.mode)) return true
-            if (changed(prev.recirc, next.recirc)) return true
+            // Compare intake category, not raw bits: in AUTO-intake the car flips recirc itself.
+            if (changed(prev.intake, next.intake)) return true
         }
         return false
     }
