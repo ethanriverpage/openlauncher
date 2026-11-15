@@ -245,10 +245,10 @@ private fun RearCard(s: ClimateState, colors: ClimateColors, modifier: Modifier,
     val key: (() -> Unit) -> Unit = { action -> onInteract(); action() }
     Card("REAR", colors, modifier) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 22.dp),
-            verticalArrangement = Arrangement.SpaceEvenly
+            Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = 24.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     tempLabel(s.rearTemp, s.rearLo, s.rearHi, s.tempUnit),
                     color = if (rearOn) colors.text else colors.dim,
@@ -256,14 +256,14 @@ private fun RearCard(s: ClimateState, colors: ClimateColors, modifier: Modifier,
                     modifier = Modifier.weight(1f)
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StepButton(Icons.Default.KeyboardArrowUp, colors, size = 44.dp) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_UP) } }
-                    StepButton(Icons.Default.KeyboardArrowDown, colors, size = 44.dp) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_DOWN) } }
+                    StepButton(Icons.Default.KeyboardArrowUp, colors, size = 40.dp) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_UP) } }
+                    StepButton(Icons.Default.KeyboardArrowDown, colors, size = 40.dp) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_DOWN) } }
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StepButton(Icons.Default.Remove, colors, size = 44.dp) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_DOWN) } }
-                FanBars(level = s.rearFan ?: 0, colors = colors, modifier = Modifier.weight(1f).height(36.dp))
-                StepButton(Icons.Default.Add, colors, size = 44.dp) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_UP) } }
+            Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StepButton(Icons.Default.Remove, colors, size = 40.dp) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_DOWN) } }
+                FanBars(level = s.rearFan ?: 0, colors = colors, modifier = Modifier.weight(1f).height(32.dp))
+                StepButton(Icons.Default.Add, colors, size = 40.dp) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_UP) } }
             }
             Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 val auto = (s.rearAuto ?: 0) != 0
