@@ -29,6 +29,7 @@ import com.openlauncher.app.climate.Intake
 import com.openlauncher.app.climate.intake
 import com.openlauncher.app.climate.modeName
 import com.openlauncher.app.climate.TwClimateClient
+import com.openlauncher.app.climate.TwMcu
 import com.openlauncher.app.climate.TwClimateClient.Cmd
 
 private val CARD_SHAPE = RoundedCornerShape(0.dp)
@@ -126,6 +127,9 @@ fun ClimatePanel(
                 title = "PASSENGER", s = s, left = false, off = off, colors = colors,
                 modifier = Modifier.weight(1f).fillMaxHeight(), send = send
             )
+            if (s.rearTemp != null || s.rearFan != null) {
+                RearCard(s, colors, Modifier.weight(1f).fillMaxHeight(), onInteract)
+            }
         }
         Row(Modifier.fillMaxWidth().height(72.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             toggles(s).forEach { t ->
@@ -231,6 +235,74 @@ private fun FanCard(s: ClimateState, off: Boolean, colors: ClimateColors, modifi
     }
 }
 
+/**
+ * GX460 rear climate. com.tw.ac reports it but has no command for it, so keys go straight to
+ * the MCU via [TwMcu] — the same frames the stock A/C app sends.
+ */
+@Composable
+private fun RearCard(s: ClimateState, colors: ClimateColors, modifier: Modifier, onInteract: () -> Unit) {
+    val rearOn = (s.rearFan ?: 0) > 0
+    val key: (() -> Unit) -> Unit = { action -> onInteract(); action() }
+    Card("REAR", colors, modifier) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 22.dp),
+            verticalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    tempLabel(s.rearTemp, s.rearLo, s.rearHi, s.tempUnit),
+                    color = if (rearOn) colors.text else colors.dim,
+                    fontSize = 40.sp, fontWeight = FontWeight.Light, maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    StepButton(Icons.Default.KeyboardArrowUp, colors, size = 44.dp) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_UP) } }
+                    StepButton(Icons.Default.KeyboardArrowDown, colors, size = 44.dp) { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_DOWN) } }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StepButton(Icons.Default.Remove, colors, size = 44.dp) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_DOWN) } }
+                FanBars(level = s.rearFan ?: 0, colors = colors, modifier = Modifier.weight(1f).height(36.dp))
+                StepButton(Icons.Default.Add, colors, size = 44.dp) { key { TwMcu.step(TwMcu.KEY_REAR_FAN_UP) } }
+            }
+            Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val auto = (s.rearAuto ?: 0) != 0
+                MiniTile(colors, auto, Modifier.weight(1f)) {
+                    key { TwMcu.toggle(TwMcu.KEY_REAR_AUTO, auto) }
+                } { tint -> Icon(painterResource(R.drawable.hvac_auto), "Rear auto", tint = tint, modifier = Modifier.size(28.dp)) }
+                MiniTile(colors, false, Modifier.weight(1f)) {
+                    key { TwMcu.sendKey(TwMcu.KEY_REAR_MODE, TwMcu.ON) }
+                } { tint ->
+                    val icon = modeIcon(s.rearMode)
+                    if (icon != null) Icon(painterResource(icon), "Rear airflow", tint = tint, modifier = Modifier.size(28.dp))
+                    else Text("MODE", color = tint, fontSize = 10.sp)
+                }
+                MiniTile(colors, rearOn, Modifier.weight(1f)) {
+                    key { TwMcu.toggle(TwMcu.KEY_REAR_POWER, rearOn) }
+                } { tint -> Icon(Icons.Default.PowerSettingsNew, "Rear on/off", tint = tint, modifier = Modifier.size(24.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniTile(
+    colors: ClimateColors,
+    on: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    content: @Composable (Color) -> Unit
+) {
+    Box(
+        modifier
+            .fillMaxHeight()
+            .background(if (on) colors.accent.copy(alpha = 0.18f) else Color.Transparent, CARD_SHAPE)
+            .border(1.dp, if (on) colors.accent else colors.cardBorder, CARD_SHAPE)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) { content(if (on) colors.accent else colors.text) }
+}
+
 @Composable
 private fun FanBars(level: Int, colors: ClimateColors, modifier: Modifier, max: Int = 7) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
@@ -314,10 +386,10 @@ private fun ToggleTile(t: Toggle, colors: ClimateColors, modifier: Modifier, onC
 }
 
 @Composable
-private fun StepButton(icon: ImageVector, colors: ClimateColors, onClick: () -> Unit) {
+private fun StepButton(icon: ImageVector, colors: ClimateColors, size: androidx.compose.ui.unit.Dp = 56.dp, onClick: () -> Unit) {
     Box(
         Modifier
-            .size(56.dp)
+            .size(size)
             .border(1.dp, colors.cardBorder, CARD_SHAPE)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

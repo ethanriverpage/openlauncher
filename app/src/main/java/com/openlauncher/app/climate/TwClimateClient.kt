@@ -48,6 +48,14 @@ data class ClimateState(
     val seatHeatRight: Int? = null,  // F27
     val seatVentLeft: Int? = null,   // F28
     val seatVentRight: Int? = null,  // F29
+    // Rear (GX460 rear panel). Reported via the generic Bundle callback + a few typed ones.
+    val rearTemp: Float? = null,     // F40
+    val rearLo: Boolean = false,
+    val rearHi: Boolean = false,
+    val rearFan: Int? = null,        // F45 level
+    val rearAuto: Int? = null,       // F44
+    val rearOff: Int? = null,        // F47
+    val rearMode: Int? = null,       // F50 (icon index)
     val extras: Map<String, Number> = emptyMap(), // generic Bundle callback (feature id -> value)
 )
 
@@ -127,6 +135,31 @@ class TwClimateClient(context: Context) {
         SEAT_HEAT_LEFT(11), SEAT_HEAT_RIGHT(12), SEAT_VENT_LEFT(13), SEAT_VENT_RIGHT(14),
     }
 
+    @Volatile private var lastFrontFanMs = 0L
+    @Volatile private var lastFrontAutoMs = 0L
+
+    /**
+     * Maps rear features out of the generic Bundle callback. The stock config also carries
+     * hidden duplicates of rear fan/AUTO (F45/F44) that read the *front* frame, so a front
+     * change echoes into those keys a few ms later — drop a value that matches a front change
+     * from the same instant.
+     */
+    private fun ClimateState.withRear(b: Map<String, Number>): ClimateState {
+        val now = SystemClock.uptimeMillis()
+        var n = this
+        b["40"]?.let { n = n.copy(rearTemp = it.toFloat()) }
+        b["47"]?.let { n = n.copy(rearOff = it.toInt()) }
+        b["45"]?.toInt()?.let { v ->
+            val echo = now - lastFrontFanMs < ECHO_MS && v == fan
+            if (!echo) n = n.copy(rearFan = v)
+        }
+        b["44"]?.toInt()?.let { v ->
+            val echo = now - lastFrontAutoMs < ECHO_MS && v == auto
+            if (!echo) n = n.copy(rearAuto = v)
+        }
+        return n
+    }
+
     /** Logs which fields changed — used to map raw values (`adb logcat -s TwClimate`). */
     private fun logDiff(prev: ClimateState, next: ClimateState) {
         val a = prev.toString().removePrefix("ClimateState(").removeSuffix(")").split(", ")
@@ -162,11 +195,14 @@ class TwClimateClient(context: Context) {
             6  -> p.readInt().let { v -> apply { copy(power = v) } }
             7  -> p.readInt().let { v -> apply { copy(ac = v) } }
             5  -> p.readInt().let { v -> apply { copy(recirc = v) } }
-            8  -> p.readInt().let { v -> apply { copy(auto = v) } }
+            8  -> p.readInt().let { v -> if (v != _state.value.auto) lastFrontAutoMs = SystemClock.uptimeMillis(); apply { copy(auto = v) } }
+            45 -> (p.readInt() != 0).let { v -> apply { copy(rearLo = v) } }
+            46 -> (p.readInt() != 0).let { v -> apply { copy(rearHi = v) } }
+            59 -> p.readInt().let { v -> apply { copy(rearMode = v) } }
             9  -> p.readInt().let { v -> apply { copy(dual = v) } }
             10 -> p.readInt().let { v -> apply { copy(frontDefrost = v) } }
             11 -> p.readInt().let { v -> apply { copy(rearDefrost = v) } }
-            4  -> p.readInt().let { v -> apply { copy(fan = v) } }
+            4  -> p.readInt().let { v -> if (v != _state.value.fan) lastFrontFanMs = SystemClock.uptimeMillis(); apply { copy(fan = v) } }
             1  -> p.readFloat().let { v -> apply { copy(leftTemp = v) } }
             2  -> p.readFloat().let { v -> apply { copy(rightTemp = v) } }
             47 -> p.readString().let { v -> apply { copy(tempUnit = v) } }
@@ -186,7 +222,7 @@ class TwClimateClient(context: Context) {
                     @Suppress("DEPRECATION")
                     (b.get(k) as? Number)?.let { k to it }
                 }.toMap()
-                if (add.isNotEmpty()) apply { copy(extras = extras + add) }
+                if (add.isNotEmpty()) apply { withRear(add).copy(extras = extras + add) }
             }
             else -> Log.v(TAG, "unhandled callback code $code")
         }
@@ -290,6 +326,7 @@ class TwClimateClient(context: Context) {
         private const val CODE_REGISTER = 2
         private const val CODE_UNREGISTER = 3
         private const val ARM_DELAY_MS = 3000L
+        private const val ECHO_MS = 250L
 
         @Volatile private var instance: TwClimateClient? = null
         fun get(context: Context): TwClimateClient =
