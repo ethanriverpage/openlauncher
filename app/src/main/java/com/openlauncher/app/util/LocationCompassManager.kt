@@ -11,6 +11,7 @@ import android.location.LocationManager
 import android.os.Bundle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -60,7 +61,11 @@ class LocationCompassManager(context: Context) {
                 val alpha = 0.10f
                 bearingSin = alpha * sin(azimuthRad).toFloat() + (1f - alpha) * bearingSin
                 bearingCos = alpha * cos(azimuthRad).toFloat() + (1f - alpha) * bearingCos
-                _bearing.value = ((Math.toDegrees(atan2(bearingSin.toDouble(), bearingCos.toDouble())) + 360) % 360).toFloat()
+                val b = ((Math.toDegrees(atan2(bearingSin.toDouble(), bearingCos.toDouble())) + 360) % 360).toFloat()
+                // 1° deadband: the filtered value jitters on every sensor tick, and each
+                // emission recomposes the compass UI.
+                val d = abs(b - _bearing.value).let { if (it > 180f) 360f - it else it }
+                if (d >= 1f) _bearing.value = b
             }
         }
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}

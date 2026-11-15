@@ -16,6 +16,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -87,8 +88,6 @@ class MainActivity : ComponentActivity() {
             val appsLoading by vm.appsLoading.collectAsStateWithLifecycle()
             val nowPlaying  by vm.nowPlaying.collectAsStateWithLifecycle()
             val weather     by vm.weather.collectAsStateWithLifecycle()
-            val location    by vm.location.collectAsStateWithLifecycle()
-            val bearing     by vm.compassBearing.collectAsStateWithLifecycle()
             val isWifi      by vm.isWifi.collectAsStateWithLifecycle()
             val isData      by vm.isData.collectAsStateWithLifecycle()
             val isDayModeVM by vm.isDayMode.collectAsStateWithLifecycle()
@@ -203,14 +202,21 @@ class MainActivity : ComponentActivity() {
                             AnimatedContent(
                                 targetState   = nav,
                                 transitionSpec = {
-                                    fadeIn() + slideInHorizontally { it / 10 } togetherWith
-                                    fadeOut() + slideOutHorizontally { -it / 10 }
+                                    // Short transitions: the default ~300 ms made every
+                                    // sidebar tap feel laggy on the head unit.
+                                    fadeIn(tween(150)) + slideInHorizontally(tween(150)) { it / 20 } togetherWith
+                                    fadeOut(tween(100)) + slideOutHorizontally(tween(100)) { -it / 20 }
                                 },
                                 modifier = paneModifier,
                                 label    = "pane_transition"
                             ) { destination ->
                                 when (destination) {
-                                    NavDestination.HOME -> HomeScreen(
+                                    NavDestination.HOME -> {
+                                    // Collected here, not at the root: the compass/GPS tick
+                                    // several times a second and would recompose the whole app.
+                                    val location by vm.location.collectAsStateWithLifecycle()
+                                    val bearing  by vm.compassBearing.collectAsStateWithLifecycle()
+                                    HomeScreen(
                                         settings            = settings,
                                         weather             = weather,
                                         nowPlaying          = nowPlaying,
@@ -253,6 +259,7 @@ class MainActivity : ComponentActivity() {
                                         onRadioTune           = { band, freq -> vm.radioTune(band, freq) },
                                         onAssignRadio         = { vm.startRadioPicker() }
                                     )
+                                    }
 
                                     NavDestination.APP_LIBRARY -> AppLibraryScreen(
                                         apps                = apps,

@@ -35,7 +35,12 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            isMinifyEnabled = false
+            // Optimized build for the head unit: R8 + resource shrinking, and non-debuggable so
+            // ART will AOT-compile it (it refuses "speed" compilation for debuggable apps).
+            // Signed with the same committed key as debug so it installs over either build.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -50,6 +55,11 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    lint {
+        // Don't block/slow the CI release build on lint-vital checks.
+        checkReleaseBuilds = false
     }
 }
 
