@@ -71,9 +71,6 @@ data class AppSettings(
     val fontBold: Boolean = false,
     val textScale: Float = 1.2f,
     val uiScale: Float = 1.0f,
-    // When true, uiScale is multiplied by an auto factor derived from this display's
-    // resolution and physical size (see util/DisplayScale.kt); uiScale then acts as a trim.
-    val autoScale: Boolean = true,
     val clockStyle: ClockStyle = ClockStyle.DIGITAL,
     val unitSystem: UnitSystem = UnitSystem.METRIC,
     val appFont: AppFont = AppFont.JETBRAINS_MONO,

@@ -16,11 +16,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import com.openlauncher.app.util.computeAutoUiScale
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.openlauncher.app.data.DayNightMode
@@ -100,20 +97,9 @@ class MainActivity : ComponentActivity() {
             } else null
 
             val baseDensity = LocalDensity.current
-            // Auto scale derived from this display's resolution + physical size; the
-            // manual uiScale slider then trims it. Recomputed on display/config changes.
-            val configuration = LocalConfiguration.current
-            val context = LocalContext.current
-            val autoScaleBase = remember(settings.autoScale, configuration) {
-                if (settings.autoScale) {
-                    val dm = context.resources.displayMetrics
-                    computeAutoUiScale(dm.widthPixels, dm.heightPixels, dm.density, dm.xdpi, dm.ydpi)
-                } else 1f
-            }
-            val effectiveUiScale = autoScaleBase * settings.uiScale
             CompositionLocalProvider(
                 LocalDensity provides Density(
-                    density   = baseDensity.density * effectiveUiScale,
+                    density   = baseDensity.density * settings.uiScale,
                     fontScale = baseDensity.fontScale
                 )
             ) {
@@ -159,7 +145,7 @@ class MainActivity : ComponentActivity() {
 
                         val sidebarContent: @Composable () -> Unit = {
                             val sidebarDensity = Density(
-                                density = baseDensity.density * (1.0f + (effectiveUiScale - 1.0f) * 0.35f),
+                                density = baseDensity.density * (1.0f + (settings.uiScale - 1.0f) * 0.35f),
                                 fontScale = baseDensity.fontScale
                             )
                             CompositionLocalProvider(LocalDensity provides sidebarDensity) {
