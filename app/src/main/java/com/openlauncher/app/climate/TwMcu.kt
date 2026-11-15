@@ -26,8 +26,8 @@ object TwMcu {
     const val KEY_REAR_TEMP_DOWN = 0x34
     const val KEY_REAR_FAN_UP = 0x2D
     const val KEY_REAR_FAN_DOWN = 0x2E
-    // 0x2F (F50 in AirConfig) is ignored by the GX460; trying F68's key.
-    const val KEY_REAR_MODE = 0x2A
+    // No rear airflow key: 0x2F (F50) and 0x2A (F68) both reach the MCU but the GX460
+    // ignores them, and the car never reports rear vent mode.
     const val KEY_REAR_POWER = 0x30          // stock UI: "Rear on"
     const val KEY_REAR_AUTO = 0x31
 
@@ -74,18 +74,5 @@ object TwMcu {
 
     fun toggle(key: Int, currentlyOn: Boolean) = sendKey(key, if (currentlyOn) OFF else ON)
 
-    /**
-     * Momentary key that steps through states (e.g. airflow mode). com.tw.ac alternates the
-     * second byte 0xCC/0x22 on every press of such a key; the MCU needs the change to see a
-     * new press.
-     */
-    private val lastPress = mutableMapOf<Int, Int>()
-
-    @Synchronized
-    fun press(key: Int): Boolean {
-        val b2 = if (lastPress[key] == OFF) ON else OFF
-        lastPress[key] = b2
-        return sendKey(key, b2)
-    }
     fun step(key: Int) = sendKey(key, STEP)
 }

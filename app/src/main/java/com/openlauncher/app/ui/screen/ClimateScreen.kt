@@ -283,21 +283,6 @@ private fun RearPanel(
                     }
                 }
             }
-            // Airflow
-            Card("REAR AIRFLOW", colors, Modifier.weight(1f).fillMaxHeight()) {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .clickable { key { TwMcu.press(TwMcu.KEY_REAR_MODE) } }
-                        .padding(horizontal = 16.dp, vertical = 22.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // The car doesn't report the rear vent mode (the only "rear mode" value
-                    // com.tw.ac emits is an echo of the front), so this is a plain mode key.
-                    Icon(painterResource(R.drawable.hvac_mode_face_floor), "Rear airflow", tint = colors.text, modifier = Modifier.size(96.dp))
-                }
-            }
         }
         Row(Modifier.fillMaxWidth().height(72.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ToggleTile(Toggle("FRONT", icon = Icons.Default.ArrowBack, on = false, cmd = Cmd.POWER), colors, Modifier.weight(1f).fillMaxHeight()) { onBack() }
