@@ -142,7 +142,7 @@ private fun RearPanel(s: ClimateState, modifier: Modifier, onInteract: () -> Uni
             }
         }
         Row(Modifier.fillMaxWidth().height(96.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ToggleTile(Toggle("Rear Auto", res = R.drawable.hvac_auto, on = rearAuto, cmd = Cmd.POWER), Modifier.weight(1f).fillMaxHeight()) {
+            ToggleTile(Toggle("Rear Auto", icon = Icons.Rounded.HdrAuto, on = rearAuto, cmd = Cmd.POWER), Modifier.weight(1f).fillMaxHeight()) {
                 key { TwMcu.toggle(TwMcu.KEY_REAR_AUTO, rearAuto) }
             }
             ToggleTile(Toggle(if (rearOn) "Rear On" else "Rear Off", icon = Icons.Rounded.PowerSettingsNew, on = rearOn, cmd = Cmd.POWER), Modifier.weight(1f).fillMaxHeight()) {
@@ -218,8 +218,8 @@ private data class Toggle(
 private fun toggles(s: ClimateState): List<Toggle> = buildList {
     // The OFF key only switches the system off; any other key turns it back on
     add(Toggle("Off", icon = Icons.Rounded.PowerSettingsNew, on = s.fan == 0, cmd = Cmd.POWER))
-    s.auto?.let { add(Toggle("Auto", res = R.drawable.hvac_auto, on = it != 0, cmd = Cmd.AUTO)) }
-    s.ac?.let { add(Toggle("A/C", res = R.drawable.hvac_ac, on = it != 0, cmd = Cmd.AC)) }
+    s.auto?.let { add(Toggle("Auto", icon = Icons.Rounded.HdrAuto, on = it != 0, cmd = Cmd.AUTO)) }
+    s.ac?.let { add(Toggle("A/C", icon = Icons.Rounded.AcUnit, on = it != 0, cmd = Cmd.AC)) }
     s.intake?.let {
         when (it) {
             Intake.RECIRC -> add(Toggle("Recirculate", res = R.drawable.hvac_recirc, on = true, cmd = Cmd.RECIRC))
@@ -265,9 +265,13 @@ private fun ToggleTile(t: Toggle, modifier: Modifier, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
     ) {
-        when {
-            t.res != null -> Icon(painterResource(t.res), null, tint = fg, modifier = Modifier.size(38.dp))
-            t.icon != null -> Icon(t.icon, null, tint = fg, modifier = Modifier.size(32.dp))
+        // One glyph box for every toggle. The AOSP HVAC vectors draw their figure in the middle
+        // ~half of a 108-unit frame, so they render larger to match the Material glyphs' weight.
+        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+            when {
+                t.res != null -> Icon(painterResource(t.res), null, tint = fg, modifier = Modifier.requiredSize(58.dp))
+                t.icon != null -> Icon(t.icon, null, tint = fg, modifier = Modifier.size(32.dp))
+            }
         }
         Text(t.label, style = Hig.type.footnote.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = fg, maxLines = 1, textAlign = TextAlign.Center)
     }
