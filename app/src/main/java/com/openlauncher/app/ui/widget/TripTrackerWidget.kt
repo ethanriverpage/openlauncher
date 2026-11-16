@@ -138,13 +138,14 @@ fun TripTrackerWidget(
 
     BoxWithConstraints(modifier.fillMaxSize().padding(20.dp)) {
         val roomy = maxHeight >= 220.dp
+        val wide = maxWidth >= 300.dp
         val numeralSize = with(LocalDensity.current) { (minOf(maxHeight.value * 0.30f, maxWidth.value * 0.20f)).dp.toSp() }
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
             // Caption + mode switch
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 WidgetCaption(if (accelMode) (if (isMetric) "0–100 km/h" else "0–60 mph") else "Trip",
                     if (accelMode) Icons.Rounded.Speed else Icons.Rounded.Route, Modifier.weight(1f))
-                if (maxWidth >= 300.dp) Segmented(
+                if (wide) Segmented(
                     listOf("TRIP" to "Trip", "0-100" to (if (isMetric) "0–100" else "0–60")),
                     activeMode, { activeMode = it }
                 )

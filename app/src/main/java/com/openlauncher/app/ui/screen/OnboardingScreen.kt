@@ -141,7 +141,7 @@ fun OnboardingScreen(
 
             // Primary action, then the quiet secondary one
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                val next = { if (currentStep < last) currentStep++ else onComplete() }
+                val next: () -> Unit = { if (currentStep < last) currentStep++ else onComplete() }
                 when {
                     currentStep == 1 && !locationGranted -> PillButton("Allow Location", {
                         locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
