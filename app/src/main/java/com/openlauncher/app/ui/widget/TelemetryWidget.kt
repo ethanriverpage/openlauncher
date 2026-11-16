@@ -36,7 +36,8 @@ fun TelemetryWidget(
     val heading = ((bearing % 360f) + 360f) % 360f
     val cardinal = cardinalOf(heading)
     val measurer = rememberTextMeasurer()
-    val letterStyle = remember(c) { TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+    // Follows the Text Size setting like every other label
+    val letterStyle = Hig.type.headline.copy(fontWeight = FontWeight.Bold)
 
     Column(
         modifier.padding(horizontal = 20.dp, vertical = 24.dp),
