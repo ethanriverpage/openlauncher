@@ -1,51 +1,81 @@
+@file:OptIn(ExperimentalTextApi::class)
+
 package com.openlauncher.app.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.R
-import com.openlauncher.app.data.AppFont
 
-val JetBrainsMono = FontFamily(
-    Font(R.font.jetbrains_mono_light,   FontWeight.Light),
-    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
-    Font(R.font.jetbrains_mono_bold,    FontWeight.Medium),
-    Font(R.font.jetbrains_mono_bold,    FontWeight.SemiBold),
-    Font(R.font.jetbrains_mono_bold,    FontWeight.Bold),
+/*
+ * Inter stands in for SF Pro, which is licensed for Apple platforms only. One variable file
+ * (res/font/inter_variable.ttf, SIL OFL) carries every weight; the display family pins the
+ * optical-size axis high so large numerals get Inter's tighter display cut, as SF Display does.
+ * On API < 26 the platform ignores variation settings and renders the default instance.
+ */
+private fun inter(weight: Int, opsz: Float) = Font(
+    R.font.inter_variable,
+    weight = FontWeight(weight),
+    variationSettings = FontVariation.Settings(
+        FontVariation.weight(weight),
+        FontVariation.Setting("opsz", opsz)
+    )
 )
 
-val SourceCodePro = FontFamily(
-    Font(R.font.source_code_pro_regular, FontWeight.Normal),
-    Font(R.font.source_code_pro_bold,    FontWeight.Medium),
-    Font(R.font.source_code_pro_bold,    FontWeight.SemiBold),
-    Font(R.font.source_code_pro_bold,    FontWeight.Bold),
+val Inter = FontFamily(
+    inter(400, 14f), inter(500, 14f), inter(600, 14f), inter(700, 14f)
 )
 
-fun AppFont.toFontFamily(): FontFamily = when (this) {
-    AppFont.SYSTEM          -> FontFamily.Default
-    AppFont.JETBRAINS_MONO  -> JetBrainsMono
-    AppFont.SOURCE_CODE_PRO -> SourceCodePro
+val InterDisplay = FontFamily(
+    inter(400, 32f), inter(500, 32f), inter(600, 32f), inter(700, 32f)
+)
+
+/**
+ * HIG text styles, sized up from iOS points for arm's-length reading on a dash screen.
+ * [scale] is the user's Text Size setting.
+ */
+class HigType(scale: Float) {
+    private fun s(v: Float): TextUnit = (v * scale).sp
+    private val tnum = "tnum"
+
+    val largeTitle = TextStyle(fontFamily = InterDisplay, fontWeight = FontWeight.Bold,     fontSize = s(34f), letterSpacing = (-0.02).em)
+    val title1     = TextStyle(fontFamily = InterDisplay, fontWeight = FontWeight.Bold,     fontSize = s(28f), letterSpacing = (-0.015).em)
+    val title2     = TextStyle(fontFamily = Inter,        fontWeight = FontWeight.SemiBold, fontSize = s(24f), letterSpacing = (-0.01).em)
+    val headline   = TextStyle(fontFamily = Inter,        fontWeight = FontWeight.SemiBold, fontSize = s(19f))
+    val body       = TextStyle(fontFamily = Inter,        fontWeight = FontWeight.Normal,   fontSize = s(19f))
+    val callout    = TextStyle(fontFamily = Inter,        fontWeight = FontWeight.Normal,   fontSize = s(17f))
+    val subhead    = TextStyle(fontFamily = Inter,        fontWeight = FontWeight.Normal,   fontSize = s(16f))
+    val footnote   = TextStyle(fontFamily = Inter,        fontWeight = FontWeight.Normal,   fontSize = s(14f), fontFeatureSettings = tnum)
+    val caption    = TextStyle(fontFamily = Inter,        fontWeight = FontWeight.Medium,   fontSize = s(13f), fontFeatureSettings = tnum)
+
+    /** Big glanceable numerals (clock, temperature, heading). Size is set by the caller. */
+    val numeral    = TextStyle(fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em, fontFeatureSettings = tnum)
 }
 
-fun launcherTypography(bold: Boolean, scale: Float, fontFamily: FontFamily = FontFamily.Default): Typography {
-    val weight = if (bold) FontWeight.Bold else FontWeight.Normal
+/** Material typography still backs stock M3 pieces (text fields, menus); keep it on Inter. */
+fun materialTypography(scale: Float): Typography {
+    fun st(size: Float, w: FontWeight) = TextStyle(fontFamily = Inter, fontWeight = w, fontSize = (size * scale).sp)
     return Typography(
-        displayLarge   = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Light,  fontSize = (57 * scale).sp),
-        displayMedium  = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Light,  fontSize = (45 * scale).sp),
-        headlineLarge  = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (32 * scale).sp),
-        headlineMedium = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (28 * scale).sp),
-        headlineSmall  = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (24 * scale).sp),
-        titleLarge     = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (22 * scale).sp),
-        titleMedium    = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (16 * scale).sp),
-        titleSmall     = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (14 * scale).sp),
-        bodyLarge      = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (16 * scale).sp),
-        bodyMedium     = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (14 * scale).sp),
-        bodySmall      = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (12 * scale).sp),
-        labelLarge     = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (14 * scale).sp),
-        labelMedium    = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (12 * scale).sp),
-        labelSmall     = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (11 * scale).sp),
+        displayLarge   = st(57f, FontWeight.SemiBold),
+        displayMedium  = st(45f, FontWeight.SemiBold),
+        headlineLarge  = st(32f, FontWeight.Bold),
+        headlineMedium = st(28f, FontWeight.Bold),
+        headlineSmall  = st(24f, FontWeight.SemiBold),
+        titleLarge     = st(22f, FontWeight.SemiBold),
+        titleMedium    = st(19f, FontWeight.SemiBold),
+        titleSmall     = st(16f, FontWeight.SemiBold),
+        bodyLarge      = st(19f, FontWeight.Normal),
+        bodyMedium     = st(17f, FontWeight.Normal),
+        bodySmall      = st(15f, FontWeight.Normal),
+        labelLarge     = st(17f, FontWeight.SemiBold),
+        labelMedium    = st(15f, FontWeight.Medium),
+        labelSmall     = st(13f, FontWeight.Medium),
     )
 }

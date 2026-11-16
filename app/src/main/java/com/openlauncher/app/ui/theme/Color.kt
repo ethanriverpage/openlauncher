@@ -1,21 +1,44 @@
 package com.openlauncher.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 
-val Black       = Color(0xFF000000)
-val White       = Color(0xFFFFFFFF)
-val DimSurface  = Color(0xFF0D0D0D)
-val CardSurface = Color(0xFF141414)
-val DividerGray = Color(0xFF2A2A2A)
-val TextMuted   = Color(0xFF888888)
+/**
+ * Apple HIG system colours. Each accent preset carries its dark (night) and light (day)
+ * variant, the way iOS resolves systemBlue etc. per appearance.
+ */
+data class TintPreset(val name: String, val dark: Color, val light: Color)
 
-// Preset accent colours
-val AccentBlack = Color(0xFF000000)
-val AccentWhite = Color(0xFFFFFFFF)
-val AccentBlue  = Color(0xFF2979FF)
-val AccentGreen = Color(0xFF00E676)
-val AccentAmber = Color(0xFFFFAB00)
-val AccentRed   = Color(0xFFFF1744)
+val TintPresets = listOf(
+    TintPreset("Blue",     Color(0xFF0A84FF), Color(0xFF007AFF)),
+    TintPreset("Indigo",   Color(0xFF5E5CE6), Color(0xFF5856D6)),
+    TintPreset("Purple",   Color(0xFFBF5AF2), Color(0xFFAF52DE)),
+    TintPreset("Pink",     Color(0xFFFF375F), Color(0xFFFF2D55)),
+    TintPreset("Red",      Color(0xFFFF453A), Color(0xFFFF3B30)),
+    TintPreset("Orange",   Color(0xFFFF9F0A), Color(0xFFFF9500)),
+    TintPreset("Yellow",   Color(0xFFFFD60A), Color(0xFFFFCC00)),
+    TintPreset("Green",    Color(0xFF30D158), Color(0xFF34C759)),
+    TintPreset("Teal",     Color(0xFF40C8E0), Color(0xFF30B0C7)),
+    TintPreset("Graphite", Color(0xFF8E8E93), Color(0xFF8E8E93)),
+)
 
-val accentPresets      = listOf(AccentBlack, AccentWhite, AccentBlue, AccentGreen, AccentAmber, AccentRed)
-val accentPresetLabels = listOf("Black", "White", "Blue", "Green", "Amber", "Red")
+val DefaultTint = TintPresets.first()
+
+/**
+ * Resolves a stored accent int to the tint for the current appearance. Presets map to their
+ * day/night variant; a legacy free-picked colour is kept, except white/black, which cannot
+ * work as a tint on HIG surfaces and fall back to system blue.
+ */
+fun resolveTint(stored: Int, isDayMode: Boolean): Color {
+    val c = Color(stored)
+    TintPresets.firstOrNull { it.dark.toArgb() == stored || it.light.toArgb() == stored }?.let {
+        return if (isDayMode) it.light else it.dark
+    }
+    val lum = c.luminance()
+    if (lum > 0.85f || lum < 0.02f) return if (isDayMode) DefaultTint.light else DefaultTint.dark
+    return c
+}
+
+fun presetFor(stored: Int): TintPreset? =
+    TintPresets.firstOrNull { it.dark.toArgb() == stored || it.light.toArgb() == stored }

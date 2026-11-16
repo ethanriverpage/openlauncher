@@ -1,38 +1,40 @@
 package com.openlauncher.app.ui.screen
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SearchOff
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.platform.LocalTextInputService
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.openlauncher.app.model.AppInfo
-import com.openlauncher.app.ui.theme.LocalDayMode
+import com.openlauncher.app.ui.components.CircleIconButton
+import com.openlauncher.app.ui.components.PillButton
+import com.openlauncher.app.ui.components.Segmented
+import com.openlauncher.app.ui.components.pressable
+import com.openlauncher.app.ui.theme.Hig
 
 private enum class AppFilter { USER, SYSTEM, ALL }
-
-private val TILE_RADIUS = RoundedCornerShape(4.dp)
 
 @Composable
 fun AppLibraryScreen(
@@ -41,202 +43,119 @@ fun AppLibraryScreen(
     isPickerMode: Boolean,
     pickerSlot: Int?,
     isCarPlayPickerMode: Boolean,
-    carPlayPickerLabel: String = "CHOOSE CARPLAY APP",
-    accent: Color,
+    carPlayPickerLabel: String = "Choose CarPlay App",
     onAppClick: (AppInfo) -> Unit,
     onPickerSelect: (Int, AppInfo) -> Unit,
     onCarPlaySelect: (AppInfo) -> Unit,
+    onCancelPicker: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val isDayMode     = LocalDayMode.current
-    val screenBg      = MaterialTheme.colorScheme.background
-    val headerColor   = MaterialTheme.colorScheme.onBackground
-    val placeholderC  = if (isDayMode) Color(0xFF999999) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-    val dividerColor  = if (isDayMode) Color(0xFFCCCCCC) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)
-    val emptyColor    = if (isDayMode) Color(0xFF888888) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-    val fieldTextC    = MaterialTheme.colorScheme.onBackground
-    val fieldBorderU  = if (isDayMode) Color(0xFFCCCCCC) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
+    val c = Hig.colors
+    val picking = isPickerMode || isCarPlayPickerMode
+    var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf(AppFilter.USER) }
 
-    val anyPickerMode = isPickerMode || isCarPlayPickerMode
-    var query     by remember { mutableStateOf("") }
-    var appFilter by remember { mutableStateOf(AppFilter.USER) }
-
-    val filtered = remember(apps, query, appFilter, anyPickerMode) {
-        val byName = if (query.isBlank()) apps
-                     else apps.filter { it.appName.contains(query, ignoreCase = true) }
-        // In picker mode always show everything so shortcuts can be set to any app
-        if (anyPickerMode) byName
-        else when (appFilter) {
-            AppFilter.USER   -> byName.filter { !it.isSystemApp }
+    val shown = remember(apps, query, filter, picking) {
+        val byName = if (query.isBlank()) apps else apps.filter { it.appName.contains(query, ignoreCase = true) }
+        // Pickers always list everything: head units bury CarPlay/radio receivers as system apps
+        if (picking) byName else when (filter) {
+            AppFilter.USER -> byName.filter { !it.isSystemApp }
             AppFilter.SYSTEM -> byName.filter { it.isSystemApp }
-            AppFilter.ALL    -> byName
+            AppFilter.ALL -> byName
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().background(screenBg)) {
-        // ── Header ─────────────────────────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+    Column(modifier.fillMaxSize().padding(start = 28.dp, end = 28.dp, top = 22.dp)) {
+        if (picking) Row(
+            Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(18.dp))
+                .background(c.tint.copy(alpha = 0.16f).compositeOver(c.tile))
+                .padding(start = 20.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text          = when {
-                    isCarPlayPickerMode -> carPlayPickerLabel
-                    anyPickerMode       -> "CHOOSE APP"
-                    else                -> "APPS"
-                },
-                style         = MaterialTheme.typography.titleLarge,
-                color         = if (anyPickerMode) accent else headerColor,
-                letterSpacing = 3.sp,
-                fontSize      = 14.sp
+                if (isCarPlayPickerMode) carPlayPickerLabel else "Choose an App for the Sidebar",
+                style = Hig.type.headline, color = c.label, modifier = Modifier.weight(1f)
             )
-            if (!anyPickerMode) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AppFilter.entries.forEach { filter ->
-                        FilterChip(
-                            selected = appFilter == filter,
-                            onClick  = { appFilter = filter },
-                            label    = {
-                                Text(
-                                    when (filter) {
-                                        AppFilter.USER   -> "Installed"
-                                        AppFilter.SYSTEM -> "System"
-                                        AppFilter.ALL    -> "All"
-                                    },
-                                    fontSize = 9.sp,
-                                    letterSpacing = 0.5.sp
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = accent,
-                                selectedLabelColor     = Color.Black,
-                                labelColor             = placeholderC
-                            )
-                        )
-                    }
-                }
+            PillButton("Cancel", onCancelPicker)
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("Apps", style = Hig.type.largeTitle, color = c.label, modifier = Modifier.weight(1f))
+            if (!picking) Segmented(
+                options = listOf(AppFilter.USER to "Installed", AppFilter.SYSTEM to "System", AppFilter.ALL to "All"),
+                selected = filter, onSelect = { filter = it }
+            )
+            SearchField(query, { query = it }, Modifier.widthIn(max = 380.dp).fillMaxWidth(0.4f))
+        }
+
+        when {
+            isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = c.label2, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
             }
-            Spacer(Modifier.weight(1f))
-            var searchFocused by remember { mutableStateOf(false) }
-            Box(
-                contentAlignment = Alignment.CenterStart,
-                modifier = Modifier
-                    .width(200.dp)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .border(1.dp, if (searchFocused) accent else fieldBorderU, RoundedCornerShape(4.dp))
-                    .padding(horizontal = 10.dp)
+            shown.isEmpty() -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Icon(Icons.Rounded.SearchOff, null, tint = c.label3, modifier = Modifier.size(48.dp))
+                Spacer(Modifier.height(10.dp))
+                Text(if (query.isBlank()) "No apps here" else "No apps match “$query”", style = Hig.type.headline, color = c.label)
+                if (!picking && filter != AppFilter.ALL) Text("Try All.", style = Hig.type.subhead, color = c.label2)
+            }
+            else -> LazyVerticalGrid(
+                columns = GridCells.Adaptive(124.dp),
+                contentPadding = PaddingValues(top = 24.dp, bottom = 28.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
+                modifier = Modifier.fillMaxSize()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Default.Search, null, tint = placeholderC, modifier = Modifier.size(14.dp))
-                    BasicTextField(
-                        value         = query,
-                        onValueChange = { query = it },
-                        singleLine    = true,
-                        textStyle     = TextStyle(color = fieldTextC, fontSize = 13.sp),
-                        cursorBrush   = SolidColor(accent),
-                        modifier      = Modifier
-                            .weight(1f)
-                            .onFocusChanged { searchFocused = it.isFocused },
-                        decorationBox = { inner ->
-                            Box {
-                                if (query.isEmpty()) Text("Search…", color = placeholderC, fontSize = 13.sp)
-                                inner()
-                            }
-                        }
-                    )
-                }
-            }
-        }
-
-        HorizontalDivider(color = dividerColor)
-
-        if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = accent, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-            }
-            return@Column
-        }
-
-        if (filtered.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No apps found", color = emptyColor, letterSpacing = 1.sp, fontSize = 12.sp)
-            }
-            return@Column
-        }
-
-        // ── App grid ────────────────────────────────────────────────────────────
-        LazyVerticalGrid(
-            columns               = GridCells.Fixed(6),
-            contentPadding        = PaddingValues(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement   = Arrangement.spacedBy(4.dp),
-            modifier              = Modifier.fillMaxSize()
-        ) {
-            items(filtered, key = { it.packageName }) { app ->
-                AppTile(
-                    app     = app,
-                    accent  = accent,
-                    onClick = {
+                items(shown, key = { it.packageName }) { app ->
+                    AppCell(app) {
                         when {
-                            isCarPlayPickerMode            -> onCarPlaySelect(app)
+                            isCarPlayPickerMode -> onCarPlaySelect(app)
                             isPickerMode && pickerSlot != null -> onPickerSelect(pickerSlot, app)
-                            else                           -> onAppClick(app)
+                            else -> onAppClick(app)
                         }
                     }
-                )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun AppTile(
-    app: AppInfo,
-    accent: Color,
-    onClick: () -> Unit
-) {
-    val isDayMode  = LocalDayMode.current
-    val tileBg     = if (isDayMode) Color(0xFFFFFFFF) else Color(0xFF0B0B0B)
-    val tileBorder = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1A1A1A)
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .aspectRatio(1f)
-            .clip(TILE_RADIUS)
-            .background(tileBg)
-            .border(1.dp, tileBorder, TILE_RADIUS)
-            .clickable(onClick = onClick)
-            .padding(7.dp)
+private fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier) {
+    val c = Hig.colors
+    Row(
+        modifier.height(48.dp).clip(RoundedCornerShape(14.dp)).background(if (c.isDark) c.tile else c.fill).padding(start = 14.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        val bmp = remember(app.packageName) {
-            try { app.icon.toBitmap(80, 80) } catch (_: Exception) { null }
+        Icon(Icons.Rounded.Search, null, tint = c.label2, modifier = Modifier.size(24.dp))
+        BasicTextField(
+            value = value, onValueChange = onChange, singleLine = true,
+            textStyle = Hig.type.body.copy(color = c.label),
+            cursorBrush = SolidColor(c.tint),
+            modifier = Modifier.weight(1f),
+            decorationBox = { inner -> Box { if (value.isEmpty()) Text("Search", style = Hig.type.body, color = c.label2); inner() } }
+        )
+        if (value.isNotEmpty()) CircleIconButton(Icons.Rounded.Close, "Clear search", { onChange("") }, size = 40.dp, iconSize = 20.dp, tint = c.label2)
+    }
+}
+
+@Composable
+private fun AppCell(app: AppInfo, onClick: () -> Unit) {
+    val c = Hig.colors
+    val px = with(LocalDensity.current) { 76.dp.roundToPx() }
+    val bmp = remember(app.packageName, px) { runCatching { app.icon.toBitmap(px, px) }.getOrNull() }
+    Column(
+        Modifier.pressable(onClick = onClick).padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (bmp != null) Image(bmp.asImageBitmap(), null, Modifier.size(76.dp))
+        else Box(Modifier.size(76.dp).clip(RoundedCornerShape(18.dp)).background(c.fill), contentAlignment = Alignment.Center) {
+            Text(app.appName.take(1).uppercase(), style = Hig.type.title1, color = c.label2)
         }
-        if (bmp != null) {
-            androidx.compose.foundation.Image(
-                painter            = BitmapPainter(bmp.asImageBitmap()),
-                contentDescription = app.appName,
-                modifier           = Modifier.size(40.dp)
-            )
-        } else {
-            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                Text(app.appName.take(1).uppercase(), color = accent, fontSize = 18.sp)
-            }
-        }
-        Spacer(Modifier.height(4.dp))
         Text(
-            text          = app.appName.uppercase(),
-            style         = MaterialTheme.typography.labelSmall,
-            color         = if (isDayMode) Color(0xFF666666) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-            maxLines      = 1,
-            overflow      = TextOverflow.Ellipsis,
-            textAlign     = TextAlign.Center,
-            letterSpacing = 1.sp,
-            fontSize      = 8.sp
+            app.appName, style = Hig.type.subhead, color = c.label,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
         )
     }
 }

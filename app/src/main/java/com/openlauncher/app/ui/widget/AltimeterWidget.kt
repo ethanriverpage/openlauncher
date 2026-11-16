@@ -1,5 +1,11 @@
 package com.openlauncher.app.ui.widget
 
+import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.Landscape
+import androidx.compose.ui.platform.LocalDensity
+import com.openlauncher.app.ui.components.WidgetCaption
+import com.openlauncher.app.ui.theme.Hig
+
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -7,7 +13,6 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -33,8 +38,6 @@ fun AltimeterWidget(
     isDayMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val iconTint = if (isDayMode) Color(0xFF333333) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f)
-    val labelColor = if (isDayMode) Color(0xFF888888) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.30f)
     val context = LocalContext.current
 
     // Accelerometer sensor state
@@ -102,64 +105,25 @@ fun AltimeterWidget(
     val displayRoll = if (hasSensor) rollDeg else 0f
     val displayPitch = if (hasSensor) pitchDeg else gpsPitch
 
-    Box(
-        modifier          = modifier,
-        contentAlignment  = Alignment.Center
-    ) {
-        // Prominent Altitude Display at the top
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "ALTITUDE",
-                color = labelColor,
-                fontSize = 7.sp,
-                letterSpacing = 1.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = if (location != null) {
-                    val altVal = if (isMetric) location.altitude else location.altitude * 3.28084
-                    val unit = if (isMetric) "m" else "ft"
-                    "%,.0f %s".format(altVal, unit)
-                } else "—",
-                color = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        // Center car icon showing roll angle
+    val c = Hig.colors
+    BoxWithConstraints(modifier.padding(24.dp)) {
+        val numSize = with(LocalDensity.current) { kotlin.math.min(maxHeight.toPx() * 0.30f, maxWidth.toPx() * 0.24f).toSp() }
+        WidgetCaption("Altitude", Icons.Rounded.Landscape, Modifier.align(Alignment.TopStart))
+        // Car glyph tilts with the measured roll, like a level
         Icon(
-            imageVector        = Icons.Default.DirectionsCar,
-            contentDescription = null,
-            tint               = iconTint,
-            modifier           = Modifier
-                .size(56.dp)
-                .padding(top = 10.dp)
-                .graphicsLayer { rotationZ = displayRoll }
+            Icons.Rounded.DirectionsCar, "Roll ${"%.0f".format(displayRoll)} degrees", tint = c.label2,
+            modifier = Modifier.align(Alignment.TopEnd).size(52.dp).graphicsLayer { rotationZ = displayRoll }
         )
-
-        // Bottom Inclinometer telemetry labels (Roll & Pitch)
-        Row(
-            modifier              = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.Bottom
-        ) {
-            Column {
-                Text("ROLL",  color = labelColor, fontSize = 7.sp, letterSpacing = 1.sp)
-                Text("%.1f°".format(displayRoll),  color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Column(Modifier.align(Alignment.BottomStart)) {
+            val alt = location?.let { if (isMetric) it.altitude else it.altitude * 3.28084 }
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(alt?.let { "%,.0f".format(it) } ?: "—", style = Hig.type.numeral.copy(fontSize = numSize, lineHeight = numSize), color = c.label, maxLines = 1)
+                Text(if (isMetric) " m" else " ft", style = Hig.type.title2, color = c.label2, modifier = Modifier.padding(bottom = 6.dp))
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("PITCH", color = labelColor, fontSize = 7.sp, letterSpacing = 1.sp, textAlign = TextAlign.End)
-                Text("%.1f°".format(displayPitch), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-            }
+            Text(
+                "Pitch ${"%.0f".format(displayPitch)}°  ·  Roll ${"%.0f".format(displayRoll)}°",
+                style = Hig.type.subhead, color = c.label2, maxLines = 1
+            )
         }
     }
 }

@@ -12,13 +12,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlauncher.app.data.AppSettings
 import com.openlauncher.app.data.SettingsRepository
 import com.openlauncher.app.ui.screen.ClimatePanel
-import com.openlauncher.app.ui.screen.climateColors
 import com.openlauncher.app.ui.theme.OpenLauncherTheme
 import kotlinx.coroutines.delay
 
@@ -39,7 +39,6 @@ class ClimateOverlayActivity : ComponentActivity() {
 
         setContent {
             val settings by repo.settingsFlow.collectAsStateWithLifecycle(initialValue = AppSettings())
-            val accent = Color(settings.accentColor)
             val isDayMode = ClimateUiState.isDayMode
 
             // Any state change from the car keeps the overlay up.
@@ -51,37 +50,35 @@ class ClimateOverlayActivity : ComponentActivity() {
             }
 
             OpenLauncherTheme(
-                accent = accent,
-                textColor = if (isDayMode) Color(0xFF111111) else Color(settings.fontColor),
-                fontBold = settings.fontBold,
-                textScale = settings.textScale,
-                appFont = settings.appFont,
-                isDayMode = isDayMode,
+                accentArgb = settings.accentColor,
+                isDayMode  = isDayMode,
+                textScale  = settings.textScale,
             ) {
+                val hig = com.openlauncher.app.ui.theme.Hig.colors
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.55f))
+                        .background(hig.scrim)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { finish() },
                     contentAlignment = Alignment.Center
                 ) {
-                    val colors = climateColors(accent, isDayMode, hasWallpaper = false)
                     Box(
                         Modifier
                             .fillMaxWidth(0.88f)
                             .fillMaxHeight(0.82f)
-                            .background(if (isDayMode) Color(0xFFEEEEEE) else Color.Black)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(32.dp))
+                            .background(hig.bg)
                             // swallow taps so they don't reach the dismiss scrim
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) { activity++ }
-                            .padding(6.dp)
+                            .padding(12.dp)
                     ) {
-                        ClimatePanel(colors, Modifier.fillMaxSize(), onInteract = { activity++ })
+                        ClimatePanel(Modifier.fillMaxSize(), onInteract = { activity++ })
                     }
                 }
             }

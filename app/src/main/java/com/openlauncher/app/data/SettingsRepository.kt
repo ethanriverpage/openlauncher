@@ -1,6 +1,7 @@
 package com.openlauncher.app.data
 
 import android.content.Context
+import androidx.compose.ui.graphics.luminance
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
@@ -12,6 +13,8 @@ import kotlinx.coroutines.flow.map
 import java.io.IOException
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "launcher_settings")
+
+private const val DESIGN_VERSION = 2
 
 class SettingsRepository(private val context: Context) {
 
@@ -59,6 +62,7 @@ class SettingsRepository(private val context: Context) {
         val SPEEDOMETER_DIGITAL_ONLY = booleanPreferencesKey("speedometer_digital_only")
         val GRADIENT_DIRECTION    = stringPreferencesKey("gradient_direction")
         val USE_CUSTOM_BG_COLOR   = booleanPreferencesKey("use_custom_bg_color")
+        val DESIGN_VERSION        = intPreferencesKey("design_version")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -89,7 +93,7 @@ class SettingsRepository(private val context: Context) {
                 if (loaded.none { it.gridX >= 2 }) defaults.widgetLayout else loaded
             } else defaults.widgetLayout
 
-            return AppSettings(
+            val loaded = AppSettings(
                 vehicleName    = prefs[Keys.VEHICLE_NAME]     ?: defaults.vehicleName,
                 accentColor    = prefs[Keys.ACCENT_COLOR]     ?: defaults.accentColor,
                 backgroundColor = prefs[Keys.BG_COLOR]        ?: defaults.backgroundColor,
@@ -136,6 +140,22 @@ class SettingsRepository(private val context: Context) {
                 gradientDirection = prefs[Keys.GRADIENT_DIRECTION]?.let { runCatching { GradientDirection.valueOf(it) }.getOrNull() } ?: defaults.gradientDirection,
                 useCustomBackgroundColor = prefs[Keys.USE_CUSTOM_BG_COLOR] ?: defaults.useCustomBackgroundColor
             )
+            return migrateDesign(prefs, loaded)
+    }
+
+    /**
+     * Design v2 (HIG redesign): the type scale is sized for a 1.0 baseline (the old default
+     * was 1.2), and a white or black accent can't serve as a tint, so both reset once.
+     * Custom background colours, gradients, fonts and font colour are no longer applied.
+     */
+    private fun migrateDesign(prefs: Preferences, s: AppSettings): AppSettings {
+        if ((prefs[Keys.DESIGN_VERSION] ?: 1) >= DESIGN_VERSION) return s
+        val accent = androidx.compose.ui.graphics.Color(s.accentColor)
+        val lum = accent.luminance()
+        return s.copy(
+            textScale   = 1.0f,
+            accentColor = if (lum > 0.85f || lum < 0.02f) AppSettings().accentColor else s.accentColor,
+        )
     }
 
     suspend fun saveSettings(s: AppSettings) {
@@ -191,6 +211,7 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.SPEEDOMETER_DIGITAL_ONLY] = s.speedometerDigitalOnly
             prefs[Keys.GRADIENT_DIRECTION] = s.gradientDirection.name
             prefs[Keys.USE_CUSTOM_BG_COLOR] = s.useCustomBackgroundColor
+            prefs[Keys.DESIGN_VERSION]     = DESIGN_VERSION
     }
 
     suspend fun resetToDefaults() {

@@ -29,7 +29,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.openlauncher.app.data.DayNightMode
 import com.openlauncher.app.data.SidebarPosition
-import com.openlauncher.app.data.GradientDirection
 import com.openlauncher.app.model.NavDestination
 import com.openlauncher.app.ui.components.Sidebar
 import com.openlauncher.app.ui.screen.*
@@ -98,23 +97,7 @@ class MainActivity : ComponentActivity() {
             val pickerSlot      by vm.shortcutPickerSlot.collectAsStateWithLifecycle()
             val appPickerTarget by vm.appPickerTarget.collectAsStateWithLifecycle()
 
-            val accent         = Color(settings.accentColor)
-            val bg             = if (settings.useCustomBackgroundColor) {
-                Color(settings.backgroundColor)
-            } else {
-                if (isDayMode) Color(0xFFEEEEEE) else Color.Black
-            }
-            val textColor      = if (isDayMode) Color(0xFF111111) else Color(settings.fontColor)
-            val bgGradientEnd  = Color(settings.gradientEndColor)
-            val bgBrush        = if (settings.useCustomBackgroundColor && settings.useGradient) {
-                val colors = listOf(bg, bgGradientEnd)
-                when (settings.gradientDirection) {
-                    GradientDirection.TOP_TO_BOTTOM -> androidx.compose.ui.graphics.Brush.verticalGradient(colors)
-                    GradientDirection.LEFT_TO_RIGHT -> androidx.compose.ui.graphics.Brush.horizontalGradient(colors)
-                    GradientDirection.DIAGONAL -> androidx.compose.ui.graphics.Brush.linearGradient(colors)
-                    GradientDirection.RADIAL -> androidx.compose.ui.graphics.Brush.radialGradient(colors)
-                }
-            } else null
+            val hasWallpaper = settings.wallpaperUri.isNotEmpty()
 
             val baseDensity = LocalDensity.current
             CompositionLocalProvider(
@@ -126,18 +109,14 @@ class MainActivity : ComponentActivity() {
                 if (!settingsLoaded) {
                     Box(modifier = Modifier.fillMaxSize().background(Color.Black))
                 } else OpenLauncherTheme(
-                    accent     = accent,
-                    background = bg,
-                    textColor  = textColor,
-                    fontBold   = settings.fontBold,
-                    textScale  = settings.textScale,
-                    appFont    = settings.appFont,
-                    isDayMode  = isDayMode,
-                    useCustomBg = settings.useCustomBackgroundColor
+                    accentArgb   = settings.accentColor,
+                    isDayMode    = isDayMode,
+                    textScale    = settings.textScale,
+                    hasWallpaper = hasWallpaper
                 ) {
                 if (!settings.onboardingCompleted) {
                     OnboardingScreen(
-                        accent = accent,
+                        accent = com.openlauncher.app.ui.theme.Hig.colors.tint,
                         onComplete = {
                             vm.updateSettings { copy(onboardingCompleted = true) }
                             // Start location updates immediately upon completion
@@ -145,23 +124,23 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
-                    Box(modifier = Modifier.fillMaxSize().let { m ->
-                        if (bgBrush != null) m.background(bgBrush) else m.background(bg)
-                    }) {
-                        // Optional wallpaper layer
-                        if (settings.wallpaperUri.isNotEmpty()) {
+                    val hig = com.openlauncher.app.ui.theme.Hig.colors
+                    Box(modifier = Modifier.fillMaxSize().background(hig.bg)) {
+                        // Optional wallpaper, always dimmed; night adds extra dimming so the
+                        // cabin stays dark. Tiles turn translucent over it (see higColors).
+                        if (hasWallpaper) {
                             AsyncImage(
                                 model              = android.net.Uri.parse(settings.wallpaperUri),
                                 contentDescription = null,
                                 contentScale       = androidx.compose.ui.layout.ContentScale.Crop,
                                 modifier           = Modifier.fillMaxSize()
                             )
+                            val dim = if (isDayMode) settings.wallpaperDim else (settings.wallpaperDim + 0.15f).coerceAtMost(0.92f)
                             Box(modifier = Modifier.fillMaxSize()
-                                .background(Color.Black.copy(alpha = settings.wallpaperDim)))
+                                .background((if (isDayMode) Color(0xFFF2F2F7) else Color.Black).copy(alpha = dim)))
                         }
 
                         val isBottomBar    = settings.sidebarPosition == SidebarPosition.BOTTOM
-                        val layoutDivColor = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1A1A1A)
 
                         val sidebarContent: @Composable () -> Unit = {
                             val sidebarDensity = Density(
@@ -174,6 +153,9 @@ class MainActivity : ComponentActivity() {
                                     settings      = settings,
                                     isHorizontal  = isBottomBar,
                                     showClimate   = hasClimate,
+                                    isWifi        = isWifi,
+                                    isData        = isData,
+                                    alignRight    = settings.sidebarPosition == SidebarPosition.RIGHT,
                                     installedIconFor = { pkg ->
                                         apps.find { it.packageName == pkg }?.icon
                                     },
@@ -202,10 +184,10 @@ class MainActivity : ComponentActivity() {
                             AnimatedContent(
                                 targetState   = nav,
                                 transitionSpec = {
-                                    // Short transitions: the default ~300 ms made every
-                                    // sidebar tap feel laggy on the head unit.
-                                    fadeIn(tween(150)) + slideInHorizontally(tween(150)) { it / 20 } togetherWith
-                                    fadeOut(tween(100)) + slideOutHorizontally(tween(100)) { -it / 20 }
+                                    // Quick crossfade with a slight settle, as iOS swaps tabs;
+                                    // anything longer reads as lag on head-unit SoCs.
+                                    (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.985f)) togetherWith
+                                    fadeOut(tween(110))
                                 },
                                 modifier = paneModifier,
                                 label    = "pane_transition"
@@ -216,8 +198,11 @@ class MainActivity : ComponentActivity() {
                                     // several times a second and would recompose the whole app.
                                     val location by vm.location.collectAsStateWithLifecycle()
                                     val bearing  by vm.compassBearing.collectAsStateWithLifecycle()
+                                    val editMode by vm.rearrangeMode.collectAsStateWithLifecycle()
                                     HomeScreen(
                                         settings            = settings,
+                                        editMode            = editMode,
+                                        onEditModeChange    = { if (it) vm.enterRearrangeMode() else vm.exitRearrangeMode() },
                                         weather             = weather,
                                         nowPlaying          = nowPlaying,
                                         location            = location,
@@ -268,29 +253,34 @@ class MainActivity : ComponentActivity() {
                                         pickerSlot          = pickerSlot,
                                         isCarPlayPickerMode = appPickerTarget != null,
                                         carPlayPickerLabel  = when (appPickerTarget) {
-                                            com.openlauncher.app.viewmodel.LauncherViewModel.AppPickerTarget.ANDROID_AUTO -> "CHOOSE ANDROID AUTO APP"
-                                            com.openlauncher.app.viewmodel.LauncherViewModel.AppPickerTarget.PIP          -> "CHOOSE PIP APP"
-                                            com.openlauncher.app.viewmodel.LauncherViewModel.AppPickerTarget.RADIO        -> "CHOOSE RADIO APP"
-                                            else -> "CHOOSE CARPLAY APP"
+                                            com.openlauncher.app.viewmodel.LauncherViewModel.AppPickerTarget.ANDROID_AUTO -> "Choose Android Auto App"
+                                            com.openlauncher.app.viewmodel.LauncherViewModel.AppPickerTarget.PIP          -> "Choose Picture-in-Picture App"
+                                            com.openlauncher.app.viewmodel.LauncherViewModel.AppPickerTarget.RADIO        -> "Choose Radio App"
+                                            else -> "Choose CarPlay App"
                                         },
-                                        accent              = accent,
                                         onAppClick          = { app -> vm.launchApp(app.packageName) },
                                         onPickerSelect      = { slot, app -> vm.assignShortcut(slot, app) },
-                                        onCarPlaySelect     = { app -> vm.assignPickerApp(app) }
+                                        onCarPlaySelect     = { app -> vm.assignPickerApp(app) },
+                                        onCancelPicker      = {
+                                            vm.cancelShortcutPicker()
+                                            vm.cancelCarPlayPicker()
+                                            vm.navigate(vm.pickerReturn)
+                                        }
                                     )
 
                                     NavDestination.SETTINGS -> SettingsScreen(
                                         settings = settings,
-                                        accent   = accent,
+                                        hasClimate = hasClimate,
+                                        onAssignCarPlay     = { vm.startCarPlayPicker() },
+                                        onAssignAndroidAuto = { vm.startAndroidAutoPicker() },
+                                        onAssignRadio       = { vm.startRadioPicker() },
+                                        onAssignShortcut    = { slot -> vm.startShortcutPicker(slot) },
+                                        onEditHome          = { vm.navigate(NavDestination.HOME); vm.enterRearrangeMode() },
                                         onUpdate = { block -> vm.updateSettings(block) },
                                         onReset  = { vm.resetSettings() }
                                     )
 
-                                    NavDestination.CLIMATE -> ClimateScreen(
-                                        accent       = accent,
-                                        isDayMode    = isDayMode,
-                                        hasWallpaper = settings.wallpaperUri.isNotEmpty()
-                                    )
+                                    NavDestination.CLIMATE -> ClimateScreen()
                                 }
                             }
                         }
@@ -298,26 +288,13 @@ class MainActivity : ComponentActivity() {
                         if (isBottomBar) {
                             Column(modifier = Modifier.fillMaxSize()) {
                                 mainPane(Modifier.weight(1f).fillMaxWidth())
-                                androidx.compose.material3.HorizontalDivider(color = layoutDivColor)
                                 sidebarContent()
                             }
                         } else {
                             Row(modifier = Modifier.fillMaxSize()) {
-                                val vDivider: @Composable () -> Unit = {
-                                    androidx.compose.material3.VerticalDivider(
-                                        modifier = Modifier.fillMaxHeight(),
-                                        color    = layoutDivColor
-                                    )
-                                }
-                                if (settings.sidebarPosition == SidebarPosition.LEFT) {
-                                    sidebarContent()
-                                    vDivider()
-                                }
+                                if (settings.sidebarPosition == SidebarPosition.LEFT) sidebarContent()
                                 mainPane(Modifier.weight(1f).fillMaxHeight())
-                                if (settings.sidebarPosition == SidebarPosition.RIGHT) {
-                                    vDivider()
-                                    sidebarContent()
-                                }
+                                if (settings.sidebarPosition == SidebarPosition.RIGHT) sidebarContent()
                             }
                         }
                     }

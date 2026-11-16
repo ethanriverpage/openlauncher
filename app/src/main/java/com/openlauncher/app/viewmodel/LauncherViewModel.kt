@@ -62,13 +62,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun navigate(dest: NavDestination) { _nav.value = dest }
 
+    // ── Pickers return to the screen that opened them (Home or Settings) ─────
+    var pickerReturn: NavDestination = NavDestination.HOME
+        private set
+
+    private fun openPicker() {
+        if (_nav.value != NavDestination.APP_LIBRARY) pickerReturn = _nav.value
+        _nav.value = NavDestination.APP_LIBRARY
+    }
+
     // ── Shortcut picker ───────────────────────────────────────────────────────
     private val _shortcutPickerSlot = MutableStateFlow<Int?>(null)
     val shortcutPickerSlot: StateFlow<Int?> = _shortcutPickerSlot
 
     fun startShortcutPicker(slot: Int) {
         _shortcutPickerSlot.value = slot
-        _nav.value = NavDestination.APP_LIBRARY
+        openPicker()
     }
 
     fun assignShortcut(slot: Int, app: AppInfo) {
@@ -79,7 +88,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             })
         }
         _shortcutPickerSlot.value = null
-        _nav.value = NavDestination.HOME
+        _nav.value = pickerReturn
     }
 
     fun removeShortcut(slot: Int) {
@@ -122,22 +131,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun startCarPlayPicker() {
         _appPickerTarget.value = AppPickerTarget.CARPLAY
-        _nav.value = NavDestination.APP_LIBRARY
+        openPicker()
     }
 
     fun startAndroidAutoPicker() {
         _appPickerTarget.value = AppPickerTarget.ANDROID_AUTO
-        _nav.value = NavDestination.APP_LIBRARY
+        openPicker()
     }
 
     fun startPipPicker() {
         _appPickerTarget.value = AppPickerTarget.PIP
-        _nav.value = NavDestination.APP_LIBRARY
+        openPicker()
     }
 
     fun startRadioPicker() {
         _appPickerTarget.value = AppPickerTarget.RADIO
-        _nav.value = NavDestination.APP_LIBRARY
+        openPicker()
     }
 
     fun assignPickerApp(app: AppInfo) {
@@ -149,7 +158,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             null -> {}
         }
         _appPickerTarget.value = null
-        _nav.value = NavDestination.HOME
+        _nav.value = pickerReturn
     }
 
     fun clearCarPlayApp()      { updateSettings { copy(carPlayPackage = "") } }
@@ -300,6 +309,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun toggleRearrangeMode() { _rearrangeMode.value = !_rearrangeMode.value }
     fun exitRearrangeMode()   { _rearrangeMode.value = false }
+    fun enterRearrangeMode()  { _rearrangeMode.value = true }
 
     // ── Installed apps ────────────────────────────────────────────────────────
     private val _apps = MutableStateFlow<List<AppInfo>>(emptyList())

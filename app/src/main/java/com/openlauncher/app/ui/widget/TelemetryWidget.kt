@@ -2,190 +2,90 @@ package com.openlauncher.app.ui.widget
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openlauncher.app.ui.theme.Hig
+import com.openlauncher.app.ui.theme.Inter
 import com.openlauncher.app.util.LocationData
-import kotlin.math.abs
+import kotlin.math.roundToInt
 
+/** iOS Compass-style dial: the card turns, the heading mark stays at the top. */
 @Composable
 fun TelemetryWidget(
     location: LocationData?,
     bearing: Float,
-    accent: Color,
-    isDayMode: Boolean = false,
+    metric: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val contentColor = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
-    val subColor     = if (isDayMode) Color(0xFF888888) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-    val ringColor    = if (isDayMode) Color(0xFFCCCCCC) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
-    val cardinalMain = if (isDayMode) Color(0xFF555555) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-    val cardinalSub  = if (isDayMode) Color(0xFF888888) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-    val arrowColor   = if (isDayMode) Color(0xFF222222) else MaterialTheme.colorScheme.onBackground
+    val c = Hig.colors
+    val heading = ((bearing % 360f) + 360f) % 360f
+    val cardinal = cardinalOf(heading)
+    val measurer = rememberTextMeasurer()
+    val letterStyle = remember(c) { TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+
     Column(
-        modifier = modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.SpaceBetween
+        modifier.padding(horizontal = 20.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── Compass ring — fills available space ─────────────────────────────
-        BoxWithConstraints(
-            modifier         = Modifier.weight(1f).fillMaxWidth(),
-            contentAlignment = Alignment.Center
+        Canvas(
+            Modifier.weight(1f).aspectRatio(1f, matchHeightConstraintsFirst = true)
+                .semantics { contentDescription = "Heading ${heading.roundToInt()} degrees $cardinal" }
         ) {
-            val minDim = minOf(maxWidth, maxHeight)
-            val radius = minDim * 0.41f
-            // Capture for use inside nested lambdas
-            val capturedMaxWidth  = maxWidth
-            val capturedMaxHeight = maxHeight
-
-            // Rotating layer: ring + cardinal labels spin opposite to bearing
-            Box(
-                modifier         = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                // Ring canvas rotates with -bearing
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { rotationZ = -bearing }
-                ) {
-                    val cx = size.width  / 2f
-                    val cy = size.height / 2f
-                    val r  = radius.toPx()
-
-                    drawCircle(
-                        color  = ringColor,
-                        radius = r,
-                        center = Offset(cx, cy),
-                        style  = Stroke(width = 1.5.dp.toPx())
-                    )
+            val r = size.minDimension / 2f
+            val ctr = center
+            rotate(-heading, ctr) {
+                for (i in 0 until 72) {
+                    val major = i % 6 == 0
+                    val len = if (major) r * 0.13f else r * 0.07f
+                    rotate(i * 5f, ctr) {
+                        drawLine(
+                            if (major) c.label2 else c.label3,
+                            Offset(ctr.x, ctr.y - r * 0.95f), Offset(ctr.x, ctr.y - r * 0.95f + len),
+                            strokeWidth = if (major) 2.5.dp.toPx() else 1.5.dp.toPx(), cap = StrokeCap.Round
+                        )
+                    }
                 }
-
-                // Cardinal labels rotate with ring
-                Box(
-                    modifier         = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { rotationZ = -bearing },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text     = "N",
-                        color    = cardinalMain,
-                        fontSize = 11.sp,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = (capturedMaxHeight / 2 - radius - 6.dp).coerceAtLeast(0.dp))
-                    )
-                    Text(
-                        text     = "S",
-                        color    = cardinalMain,
-                        fontSize = 11.sp,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = (capturedMaxHeight / 2 - radius - 6.dp).coerceAtLeast(0.dp))
-                    )
-                    Text(
-                        text     = "E",
-                        color    = cardinalSub,
-                        fontSize = 9.sp,
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = (capturedMaxWidth / 2 - radius - 6.dp).coerceAtLeast(0.dp))
-                    )
-                    Text(
-                        text     = "W",
-                        color    = cardinalSub,
-                        fontSize = 9.sp,
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = (capturedMaxWidth / 2 - radius - 6.dp).coerceAtLeast(0.dp))
-                    )
+                listOf("N" to 0f, "E" to 90f, "S" to 180f, "W" to 270f).forEach { (t, a) ->
+                    rotate(a, ctr) {
+                        val layout = measurer.measure(t, letterStyle.copy(color = if (t == "N") c.red else c.label2))
+                        drawText(layout, topLeft = Offset(ctr.x - layout.size.width / 2f, ctr.y - r * 0.72f))
+                    }
                 }
             }
-
-            // Fixed layer: small arrow always points up + pivot circle
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val cx = size.width  / 2f
-                val cy = size.height / 2f
-                val r  = radius.toPx()
-
-                // Small fixed arrow pointing straight up
-                val arrowH = r * 0.20f
-                val arrowW = arrowH * 0.48f
-                drawPath(
-                    path  = Path().apply {
-                        moveTo(cx, cy - arrowH)                   // tip
-                        lineTo(cx + arrowW, cy + arrowH * 0.42f) // bottom-right
-                        lineTo(cx, cy + arrowH * 0.08f)          // centre notch
-                        lineTo(cx - arrowW, cy + arrowH * 0.42f) // bottom-left
-                        close()
-                    },
-                    color = arrowColor
-                )
-
-                // Hollow pivot circle
-                drawCircle(
-                    color  = Color(0xFF777777),
-                    radius = 3.dp.toPx(),
-                    center = Offset(cx, cy),
-                    style  = Stroke(width = 1.5.dp.toPx())
-                )
+            // Fixed heading mark and pointer
+            drawLine(c.tint, Offset(ctr.x, ctr.y - r * 1.02f), Offset(ctr.x, ctr.y - r * 0.82f), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
+            val p = Path().apply {
+                moveTo(ctr.x, ctr.y - r * 0.36f)
+                lineTo(ctr.x + r * 0.12f, ctr.y + r * 0.12f)
+                lineTo(ctr.x, ctr.y + r * 0.04f)
+                lineTo(ctr.x - r * 0.12f, ctr.y + r * 0.12f)
+                close()
             }
+            drawPath(p, c.label)
         }
-
-        Spacer(Modifier.height(10.dp))
-
-        // ── Lat / Lon at the bottom ──────────────────────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text          = "LATITUDE",
-                    style         = MaterialTheme.typography.labelSmall,
-                    color         = subColor,
-                    letterSpacing = 1.sp,
-                    fontSize      = 7.sp
-                )
-                Text(
-                    text     = if (location != null) formatLat(location.latitude) else "—",
-                    color    = contentColor,
-                    fontSize = 11.sp
-                )
-            }
-            Column(
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    text          = "LONGITUDE",
-                    style         = MaterialTheme.typography.labelSmall,
-                    color         = subColor,
-                    letterSpacing = 1.sp,
-                    fontSize      = 7.sp,
-                    textAlign     = TextAlign.End
-                )
-                Text(
-                    text      = if (location != null) formatLon(location.longitude) else "—",
-                    color     = contentColor,
-                    fontSize  = 11.sp,
-                    textAlign = TextAlign.End
-                )
-            }
-        }
+        Text("${heading.roundToInt()}° $cardinal", style = Hig.type.numeral.copy(fontSize = 44.sp), color = c.label, maxLines = 1)
+        val speed = location?.let {
+            if (metric) "${(it.speedMps * 3.6f).roundToInt()} km/h" else "${(it.speedMps * 2.23694f).roundToInt()} mph"
+        } ?: "No GPS fix"
+        Text(speed, style = Hig.type.title2.copy(fontWeight = FontWeight.Normal), color = c.label2, maxLines = 1)
     }
 }
 
-private fun formatLat(lat: Double) = "%.4f° %s".format(abs(lat), if (lat >= 0) "N" else "S")
-private fun formatLon(lon: Double) = "%.4f° %s".format(abs(lon), if (lon >= 0) "E" else "W")
+private fun cardinalOf(deg: Float): String =
+    listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")[(((deg + 22.5f) % 360f) / 45f).toInt().coerceIn(0, 7)]
