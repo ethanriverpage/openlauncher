@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.openlauncher.app.data.SoundPadConfig
+import com.openlauncher.app.ui.components.*
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -149,12 +150,6 @@ private fun PadAssignDialog(
     onSave: (SoundPadConfig) -> Unit
 ) {
     val context    = LocalContext.current
-    val menuBg     = if (isDayMode) Color(0xFFF0F0F0) else MaterialTheme.colorScheme.background
-    val menuBorder = if (isDayMode) Color(0xFFCCCCCC) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
-    val contentColor = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
-    val dimColor   = if (isDayMode) Color(0xFF888888) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-    val fieldBorder = if (isDayMode) Color(0xFFCCCCCC) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
-
     var labelText   by remember { mutableStateOf(pad.label) }
     var synthType   by remember { mutableStateOf(pad.synthType) }
     var audioUri    by remember { mutableStateOf(pad.audioUri) }
@@ -174,181 +169,77 @@ private fun PadAssignDialog(
         }
     }
 
+    val c = Hig.colors
+    fun pretty(v: String) = v.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    val hasSound = pad.label != "+" || pad.audioUri.isNotEmpty() || pad.synthType.isNotEmpty()
+
     Dialog(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(menuBg)
-                .border(1.dp, menuBorder, RoundedCornerShape(6.dp))
-                .padding(18.dp)
-                .width(340.dp), // Fixed size: increased from 220dp to 340dp for landscape headunit displays
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            Modifier
+                .width(560.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(c.sheet)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Text(
-                "ASSIGN PAD SOUND",
-                color = contentColor,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp
-            )
+            Text("Pad Sound", style = Hig.type.title2, color = c.label)
 
-            // Label field
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("PAD LABEL", color = dimColor, fontSize = 7.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.5.sp)
+            // Name
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Name", style = Hig.type.footnote, color = c.label2)
                 BasicTextField(
                     value = labelText,
                     onValueChange = { if (it.length <= 12) labelText = it },
                     singleLine = true,
-                    textStyle = TextStyle(
-                        color = contentColor,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    ),
-                    cursorBrush = SolidColor(accent),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, fieldBorder, RoundedCornerShape(2.dp))
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                    textStyle = Hig.type.body.copy(color = c.label),
+                    cursorBrush = SolidColor(c.tint),
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.fill)
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 )
             }
 
-            // Preloaded Audio Selector (replaces old raw waveform synth generation)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("PRELOADED AUDIO", color = dimColor, fontSize = 7.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.5.sp)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val preloadedSounds = listOf(
-                        "mario_jump" to "mario_jump",
-                        "mario_coin" to "mario_coin",
-                        "boom" to "boom",
-                        "loud_fart" to "loud_fart"
-                    )
-                    preloadedSounds.forEach { (type, chipLabel) ->
-                        val active = synthType == type && audioUri.isEmpty()
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(28.dp)
-                                .border(1.dp, if (active) accent else fieldBorder, RoundedCornerShape(3.dp))
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(if (active) accent.copy(alpha = 0.12f) else Color.Transparent)
-                                .clickable { 
-                                    synthType = type
-                                    audioUri = ""
-                                    labelText = type
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                chipLabel,
-                                color = if (active) accent else dimColor,
-                                fontSize = 8.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
+            // Built-in sounds
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Built-in", style = Hig.type.footnote, color = c.label2)
+                val builtIn = listOf("mario_jump", "mario_coin", "boom", "loud_fart")
+                Segmented(
+                    builtIn.map { it to pretty(it) },
+                    if (audioUri.isEmpty()) synthType else "",
+                    { t -> synthType = t; audioUri = ""; labelText = pretty(t) }
+                )
             }
 
-            // Custom audio file picker
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("CUSTOM AUDIO FILE", color = dimColor, fontSize = 7.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.5.sp)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = { filePicker.launch(arrayOf("audio/*")) },
-                        modifier = Modifier.weight(1f).height(30.dp),
-                        shape = RoundedCornerShape(2.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = accent),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (audioUri.isNotEmpty()) accent else fieldBorder),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Icon(Icons.Default.AudioFile, null, tint = accent, modifier = Modifier.size(12.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            if (audioUri.isNotEmpty()) "CUSTOM FILE ASSIGNED" else "PICK AUDIO FILE",
-                            color = accent,
-                            fontSize = 7.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    if (audioUri.isNotEmpty()) {
-                        IconButton(
-                            onClick = { audioUri = "" },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(Icons.Default.Clear, null, tint = dimColor, modifier = Modifier.size(14.dp))
-                        }
-                    }
-                }
-                if (audioUri.isNotEmpty()) {
-                    Text(
-                        audioUri.substringAfterLast('/').take(36),
-                        color = dimColor.copy(alpha = 0.6f),
-                        fontSize = 6.5.sp,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            if (pad.label != "+" || pad.audioUri.isNotEmpty() || pad.synthType.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = {
-                        onSave(SoundPadConfig(
-                            label     = "+",
-                            audioUri  = "",
-                            synthType = ""
-                        ))
-                    },
-                    modifier = Modifier.fillMaxWidth().height(32.dp),
-                    shape = RoundedCornerShape(2.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF884444)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF884444)),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text("CLEAR SOUND", color = Color(0xFF884444), fontSize = 7.5.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            // Save / Cancel row
+            // Custom file
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.fill)
+                    .pressable { filePicker.launch(arrayOf("audio/*")) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f).height(32.dp),
-                    shape = RoundedCornerShape(2.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = dimColor),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, fieldBorder),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text("CANCEL", color = dimColor, fontSize = 7.5.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.AudioFile, null, tint = c.tint, modifier = Modifier.size(24.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(if (audioUri.isNotEmpty()) "Custom File" else "Choose Audio File…", style = Hig.type.body, color = c.label)
+                    if (audioUri.isNotEmpty()) Text(
+                        android.net.Uri.decode(audioUri).substringAfterLast('/').substringAfterLast(':'),
+                        style = Hig.type.footnote, color = c.label2, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
                 }
-                Button(
-                    onClick = {
-                        onSave(SoundPadConfig(
-                            label     = labelText.trim().ifEmpty { pad.label },
-                            audioUri  = audioUri,
-                            synthType = synthType
-                        ))
-                    },
-                    modifier = Modifier.weight(1f).height(32.dp),
-                    shape = RoundedCornerShape(2.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = accent),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text("SAVE SOUND", color = if (isDayMode) Color.White else Color.Black, fontSize = 7.5.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                }
+                if (audioUri.isNotEmpty()) CircleIconButton(Icons.Default.Clear, "Remove file", { audioUri = "" }, size = 36.dp, iconSize = 20.dp)
+            }
+
+            // Actions
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (hasSound) Text(
+                    "Clear Pad", style = Hig.type.headline, color = c.red,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                        .pressable { onSave(SoundPadConfig(label = "+", audioUri = "", synthType = "")) }
+                        .padding(horizontal = 8.dp, vertical = 12.dp)
+                )
+                Spacer(Modifier.weight(1f))
+                PillButton("Cancel", onDismiss)
+                PillButton("Save", {
+                    onSave(SoundPadConfig(label = labelText.trim().ifEmpty { pad.label }, audioUri = audioUri, synthType = synthType))
+                }, primary = true)
             }
         }
     }

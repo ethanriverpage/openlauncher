@@ -1,29 +1,24 @@
 package com.openlauncher.app.ui.widget
 
-import com.openlauncher.app.ui.theme.Hig
-
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Route
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.openlauncher.app.ui.components.PillButton
+import com.openlauncher.app.ui.components.Segmented
+import com.openlauncher.app.ui.components.WidgetCaption
+import com.openlauncher.app.ui.theme.Hig
 import com.openlauncher.app.util.LocationData
 import kotlinx.coroutines.delay
 
@@ -35,17 +30,6 @@ fun TripTrackerWidget(
     isDayMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // HIG tokens: neutral labels, system red for stop/reset, fills instead of borders
-    val hig = Hig.colors
-    val displayColor = hig.label
-    val dimDisplayColor = hig.label.copy(alpha = 0.08f)
-    val lcdBg = Color.Transparent
-    val lcdBorder = hig.fill
-    val labelColor = hig.label2
-    val activeAccent = hig.tint
-    val teRed = hig.red
-    val teGrey = hig.fill
-
     var isRunning by rememberSaveable { mutableStateOf(false) }
     var driveTimeSeconds by rememberSaveable { mutableLongStateOf(0L) }
     var idleTimeSeconds by rememberSaveable { mutableLongStateOf(0L) }
@@ -66,12 +50,12 @@ fun TripTrackerWidget(
     var accelEndTime by rememberSaveable { mutableLongStateOf(0L) }
     var accelTimeDisplay by remember { mutableStateOf("0.00s") }
     var bestAccelTime by rememberSaveable { mutableStateOf<Float?>(null) }
+    // A run only counts from a standstill; switching modes at speed must not start the clock
+    var accelArmed by rememberSaveable { mutableStateOf(false) }
     
-    var simSpeed by remember { mutableFloatStateOf(0f) }
-    var isSimulating by remember { mutableStateOf(false) }
 
     val currentSpeedMps = location?.speedMps ?: 0f
-    val speedDisplay = if (isSimulating) simSpeed else (if (isMetric) currentSpeedMps * 3.6f else currentSpeedMps * 2.23694f)
+    val speedDisplay = if (isMetric) currentSpeedMps * 3.6f else currentSpeedMps * 2.23694f
     val targetSpeed = if (isMetric) 100f else 60f
     val targetSpeedUnit = if (isMetric) "KM/H" else "MPH"
 
@@ -92,12 +76,13 @@ fun TripTrackerWidget(
 
     // GPS real-time speed run tracking
     LaunchedEffect(location, activeMode) {
-        if (activeMode == "0-100" && !isSimulating) {
+        if (activeMode == "0-100") {
             val speed = location?.speedMps ?: 0f
             val speedDisplayVal = if (isMetric) speed * 3.6f else speed * 2.23694f
             
             if (accelState == "READY") {
-                if (speedDisplayVal > 0.8f) { // start timer when vehicle moves above 0.8 km/h or mph
+                if (speedDisplayVal <= 0.8f) accelArmed = true
+                else if (accelArmed) { // start timer when vehicle moves off from a stop
                     accelStartTime = android.os.SystemClock.elapsedRealtime()
                     accelState = "RUNNING"
                 }
@@ -105,35 +90,11 @@ fun TripTrackerWidget(
                 if (speedDisplayVal >= targetSpeed) {
                     accelEndTime = android.os.SystemClock.elapsedRealtime()
                     accelState = "COMPLETE"
+                    accelArmed = false
                     val finalTime = (accelEndTime - accelStartTime) / 1000f
                     bestAccelTime = if (bestAccelTime == null) finalTime else minOf(bestAccelTime!!, finalTime)
                 }
             }
-        }
-    }
-
-    // Playful local test simulation loop (triggers when tapping speed layout while READY)
-    LaunchedEffect(isSimulating) {
-        if (isSimulating) {
-            accelStartTime = android.os.SystemClock.elapsedRealtime()
-            accelState = "RUNNING"
-            val simTarget = if (isMetric) 100f else 60f
-            simSpeed = 0f
-            while (simSpeed < simTarget + 5f && isSimulating && accelState == "RUNNING") {
-                delay(30)
-                val elapsed = (android.os.SystemClock.elapsedRealtime() - accelStartTime) / 1000f
-                simSpeed = elapsed * elapsed * 2.8f + elapsed * 8f
-                if (simSpeed >= simTarget) {
-                    accelEndTime = android.os.SystemClock.elapsedRealtime()
-                    accelState = "COMPLETE"
-                    val finalTime = (accelEndTime - accelStartTime) / 1000f
-                    bestAccelTime = if (bestAccelTime == null) finalTime else minOf(bestAccelTime!!, finalTime)
-                    break
-                }
-            }
-            isSimulating = false
-        } else {
-            simSpeed = 0f
         }
     }
 
@@ -167,474 +128,90 @@ fun TripTrackerWidget(
     val distUnit = if (isMetric) "KM" else "MI"
 
     fun formatTime(seconds: Long): String {
-        val h = seconds / 3600
-        val m = (seconds % 3600) / 60
-        val s = seconds % 60
-        return "%02d:%02d:%02d".format(h, m, s)
+        val h = seconds / 3600; val m = (seconds % 3600) / 60; val sec = seconds % 60
+        return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
     }
 
-    // Flat, borderless Column that lets the launcher's card boundary frame the content
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(start = 14.dp, end = 14.dp, top = 22.dp, bottom = 8.dp),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        // 1. DYNAMIC MONOCHROME FLAT LCD PANEL
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(6.dp))
-                .background(lcdBg)
-                .border(1.dp, lcdBorder, RoundedCornerShape(6.dp))
-                .drawBehind {
-                    val dotColor = displayColor.copy(alpha = 0.02f)
-                    val dotSize = 1.dp.toPx()
-                    val gap = 5.dp.toPx()
-                    var x = 3.dp.toPx()
-                    while (x < size.width) {
-                        var y = 3.dp.toPx()
-                        while (y < size.height) {
-                            drawCircle(
-                                color = dotColor,
-                                radius = dotSize / 2,
-                                center = Offset(x, y)
-                            )
-                            y += gap
-                        }
-                        x += gap
-                    }
-                }
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            if (activeMode == "TRIP") {
-                // Panel Column 1: Distance Readout
-                Column(
-                    modifier = Modifier.weight(0.38f),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "DISTANCE // DIST",
-                        color = labelColor,
-                        fontSize = 6.5.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    )
-                    Row(
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.BottomStart) {
-                            Text(
-                                text = "88.88",
-                                color = dimDisplayColor,
-                                fontSize = 24.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "%05.2f".format(distanceDisplay),
-                                color = displayColor,
-                                fontSize = 24.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Text(
-                            text = distUnit,
-                            color = displayColor,
-                            fontSize = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 2.dp)
-                        )
-                    }
-                    
-                    // Hired/Time-Off Indicators
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "[RUNNING]",
-                            color = if (isRunning) activeAccent else dimDisplayColor,
-                            fontSize = 6.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Text(
-                            text = "[STOPPED]",
-                            color = if (!isRunning && (driveTimeSeconds > 0 || idleTimeSeconds > 0)) teRed else dimDisplayColor,
-                            fontSize = 6.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
+    val c = Hig.colors
+    val hasData = driveTimeSeconds > 0 || idleTimeSeconds > 0
+    val accelMode = activeMode == "0-100"
 
-                // Panel Column 2: Drive & Idle Timers
-                Column(
-                    modifier = Modifier
-                        .weight(0.30f)
-                        .padding(horizontal = 2.dp),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("DRIVE [TIME]", color = labelColor, fontSize = 6.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                        Box {
-                            Text("88:88:88", color = dimDisplayColor, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                            Text(formatTime(driveTimeSeconds), color = displayColor, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                        }
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("IDLE [TIME]", color = labelColor, fontSize = 6.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                        Box {
-                            Text("88:88:88", color = dimDisplayColor, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                            Text(formatTime(idleTimeSeconds), color = displayColor, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                        }
-                    }
-                }
+    BoxWithConstraints(modifier.fillMaxSize().padding(20.dp)) {
+        val roomy = maxHeight >= 220.dp
+        val numeralSize = with(LocalDensity.current) { (minOf(maxHeight.value * 0.30f, maxWidth.value * 0.20f)).dp.toSp() }
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            // Caption + mode switch
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                WidgetCaption(if (accelMode) (if (isMetric) "0–100 km/h" else "0–60 mph") else "Trip",
+                    if (accelMode) Icons.Rounded.Speed else Icons.Rounded.Route, Modifier.weight(1f))
+                if (maxWidth >= 300.dp) Segmented(
+                    listOf("TRIP" to "Trip", "0-100" to (if (isMetric) "0–100" else "0–60")),
+                    activeMode, { activeMode = it }
+                )
+            }
 
-                // Panel Column 3: Average Speed
-                Column(
-                    modifier = Modifier.weight(0.32f),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "AVG SPEED // SPD",
-                            color = labelColor,
-                            fontSize = 6.5.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
-                        Row(
-                            verticalAlignment = Alignment.Bottom,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.BottomEnd) {
-                                Text(
-                                    text = "888.8",
-                                    color = dimDisplayColor,
-                                    fontSize = 15.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "%05.1f".format(avgSpeedDisplay),
-                                    color = displayColor,
-                                    fontSize = 15.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Text(
-                                text = speedUnit,
-                                color = displayColor,
-                                fontSize = 7.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 1.dp)
-                            )
-                        }
-                    }
-                    
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("SYS STAT", color = labelColor, fontSize = 6.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = if (isRunning) "A" else "I",
-                            color = if (isRunning) activeAccent else displayColor,
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+            // Primary reading
+            Column {
+                val (value, unit) = if (accelMode) accelTimeDisplay.removeSuffix("s") to "s"
+                                    else "%.1f".format(distanceDisplay) to distUnit.lowercase()
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(value, style = Hig.type.numeral.copy(fontSize = numeralSize, lineHeight = numeralSize), color = c.label, maxLines = 1)
+                    Text(unit, style = Hig.type.title2, color = c.label2, modifier = Modifier.padding(bottom = 6.dp))
                 }
-            } else {
-                // ACCEL RUN DISPLAY (0-100 KM/H or 0-60 MPH Speed run)
-                Column(
-                    modifier = Modifier.weight(0.48f),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = if (isMetric) "ACCEL TEST // 0-100" else "ACCEL TEST // 0-60",
-                        color = labelColor,
-                        fontSize = 6.5.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    )
-                    
-                    Row(
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.BottomStart) {
-                            Text(
-                                text = "88.88",
-                                color = dimDisplayColor,
-                                fontSize = 24.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = accelTimeDisplay.removeSuffix("s"),
-                                color = displayColor,
-                                fontSize = 24.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Text(
-                            text = "SEC",
-                            color = displayColor,
-                            fontSize = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 2.dp)
-                        )
-                    }
-                    
-                    // Acceleration Status indicators
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "[READY]",
-                            color = if (accelState == "READY") activeAccent else dimDisplayColor,
-                            fontSize = 6.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Text(
-                            text = "[RUNNING]",
-                            color = if (accelState == "RUNNING" || isSimulating) Color(0xFFE6A23C) else dimDisplayColor,
-                            fontSize = 6.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Text(
-                            text = "[COMPLETE]",
-                            color = if (accelState == "COMPLETE") teRed else dimDisplayColor,
-                            fontSize = 6.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
+                Text(
+                    when {
+                        accelMode && accelState == "READY"    -> if (accelArmed) "Starts when the car moves" else "Come to a stop to begin"
+                        accelMode && accelState == "RUNNING"  -> "Timing…"
+                        accelMode                              -> "Run complete"
+                        isRunning                              -> "Recording"
+                        hasData                                -> "Paused"
+                        else                                   -> "Not started"
+                    },
+                    style = Hig.type.subhead, color = if (isRunning || accelState == "RUNNING") c.tint else c.label2, maxLines = 1
+                )
+            }
 
-                Column(
-                    modifier = Modifier
-                        .weight(0.52f)
-                        .clickable(enabled = accelState == "READY") {
-                            isSimulating = true
-                        },
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "SPEED // TARGET %d".format(targetSpeed.toInt()),
-                            color = labelColor,
-                            fontSize = 6.5.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
-                        Row(
-                            verticalAlignment = Alignment.Bottom,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.BottomEnd) {
-                                Text(
-                                    text = "888.8",
-                                    color = dimDisplayColor,
-                                    fontSize = 15.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "%05.1f".format(speedDisplay),
-                                    color = displayColor,
-                                    fontSize = 15.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Text(
-                                text = targetSpeedUnit,
-                                color = displayColor,
-                                fontSize = 7.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 1.dp)
-                            )
-                        }
-                    }
-                    
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = if (accelState == "READY" && !isSimulating) "TAP SPEED TO TEST" else "BEST RECORD",
-                            color = if (accelState == "READY" && !isSimulating) activeAccent.copy(alpha = 0.7f) else labelColor,
-                            fontSize = 5.5.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (bestAccelTime != null) "%.2fs".format(bestAccelTime) else "--.--s",
-                            color = if (bestAccelTime != null) activeAccent else displayColor,
-                            fontSize = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+            // Secondary stats
+            if (roomy) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                if (accelMode) {
+                    Stat("Speed", "%.0f %s".format(speedDisplay, targetSpeedUnit.lowercase()))
+                    Stat("Best", bestAccelTime?.let { "%.2f s".format(it) } ?: "—")
+                } else {
+                    Stat("Driving", formatTime(driveTimeSeconds))
+                    Stat("Idle", formatTime(idleTimeSeconds))
+                    Stat("Average", "%.0f %s".format(avgSpeedDisplay, speedUnit.lowercase()))
                 }
             }
-        }
 
-        Spacer(Modifier.height(8.dp))
-
-        // 2. FLAT MINIMALIST TACTILE BUTTONS
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Button 1: OPR / RUN styled as a flat dynamic circular cap
-            val oprActive = if (activeMode == "0-100") (accelState == "RUNNING" || isSimulating) else isRunning
-            TeTactileButton(
-                label = "OPR",
-                keyColor = activeAccent,
-                active = oprActive,
-                onClick = {
-                    if (activeMode == "0-100") {
-                        isSimulating = false
-                        accelState = "READY"
-                        accelStartTime = 0L
-                        accelEndTime = 0L
-                    } else {
-                        isRunning = !isRunning
-                    }
-                },
-                isDayMode = isDayMode
-            )
-
-            // Button 2: RST / RESET
-            val canReset = if (activeMode == "0-100") {
-                accelState == "COMPLETE" || bestAccelTime != null
-            } else {
-                !isRunning && (driveTimeSeconds > 0 || idleTimeSeconds > 0)
+            // Controls
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (accelMode) {
+                    PillButton("New Run", {
+                        accelState = "READY"; accelArmed = false; accelStartTime = 0L; accelEndTime = 0L
+                    }, primary = accelState == "COMPLETE", enabled = accelState != "READY")
+                    PillButton("Clear Best", { bestAccelTime = null }, enabled = bestAccelTime != null)
+                } else {
+                    PillButton(
+                        if (isRunning) "Pause" else if (hasData) "Resume" else "Start",
+                        { isRunning = !isRunning },
+                        icon = if (isRunning) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        primary = !isRunning
+                    )
+                    PillButton("Reset", {
+                        driveTimeSeconds = 0L; idleTimeSeconds = 0L; totalSpeedSum = 0.0
+                        movingSecondsCount = 0L; tripDistanceMeters = 0.0
+                    }, enabled = !isRunning && hasData)
+                }
             }
-            TeTactileButton(
-                label = "RST",
-                keyColor = teRed,
-                active = false,
-                enabled = canReset,
-                onClick = {
-                    if (activeMode == "0-100") {
-                        isSimulating = false
-                        accelState = "READY"
-                        accelStartTime = 0L
-                        accelEndTime = 0L
-                        bestAccelTime = null
-                    } else {
-                        driveTimeSeconds = 0L
-                        idleTimeSeconds = 0L
-                        totalSpeedSum = 0.0
-                        movingSecondsCount = 0L
-                        tripDistanceMeters = 0.0
-                    }
-                },
-                isDayMode = isDayMode
-            )
-
-            // Button 3: EXTRAS (Toggles between TRIP info and 0-100 Accel Run)
-            TeTactileButton(
-                label = "EXT",
-                keyColor = activeAccent,
-                active = activeMode == "0-100",
-                enabled = true,
-                onClick = {
-                    activeMode = if (activeMode == "TRIP") "0-100" else "TRIP"
-                },
-                isDayMode = isDayMode
-            )
-
-            // Button 4: SET
-            TeTactileButton(
-                label = "SET",
-                keyColor = teGrey,
-                active = false,
-                enabled = false,
-                onClick = {},
-                isDayMode = isDayMode
-            )
         }
     }
 }
 
 @Composable
-private fun TeTactileButton(
-    label: String,
-    keyColor: Color,
-    active: Boolean,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-    isDayMode: Boolean
-) {
-    val printedLabelColor = if (isDayMode) Color(0xFF666666) else androidx.compose.material3.MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f)
-    
-    val buttonBg = if (!enabled) {
-        Color.Transparent
-    } else if (active) {
-        keyColor
-    } else {
-        if (isDayMode) Color(0xFFE5E7EB) else Color(0xFF1D2024)
-    }
-    
-    val buttonBorder = if (isDayMode) Color(0xFFD1D5DB) else Color(0xFF2E3238)
-    val dotColor = if (active) {
-        if (isDayMode) Color.White else Color.Black
-    } else {
-        if (enabled) keyColor else keyColor.copy(alpha = 0.2f)
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        // Monospace printed label above key
-        Text(
-            text = label,
-            color = printedLabelColor,
-            fontSize = 7.sp,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.5.sp
-        )
-
-        // Flat, elegant minimalist circular keycap
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(buttonBg)
-                .border(1.dp, buttonBorder, CircleShape)
-                .clickable(enabled = enabled) { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            // Failsafe flat center indicator
-            Box(
-                modifier = Modifier
-                    .size(5.dp)
-                    .clip(CircleShape)
-                    .background(dotColor)
-            )
-        }
+private fun Stat(label: String, value: String) {
+    val c = Hig.colors
+    Column {
+        Text(label, style = Hig.type.footnote, color = c.label2, maxLines = 1)
+        Text(value, style = Hig.type.headline.copy(fontFeatureSettings = "tnum"), color = c.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
-
