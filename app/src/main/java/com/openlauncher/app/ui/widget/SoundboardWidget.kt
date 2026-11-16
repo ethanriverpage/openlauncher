@@ -1,5 +1,7 @@
 package com.openlauncher.app.ui.widget
 
+import com.openlauncher.app.ui.theme.Hig
+
 import android.content.Intent
 import android.media.MediaPlayer
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,6 +49,7 @@ fun SoundboardWidget(
     val contentColor = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
     val dimColor     = if (isDayMode) Color(0xFF888888) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
     val borderColor  = if (isDayMode) Color(0xFFE5E7EB) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
+    val hig = Hig.colors
 
     var activePadIndex by remember { mutableStateOf<Int?>(null) }
     var assigningIndex by remember { mutableStateOf<Int?>(null) }
@@ -60,15 +63,15 @@ fun SoundboardWidget(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(start = 10.dp, end = 10.dp, top = 22.dp, bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         repeat(2) { row ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 repeat(3) { col ->
                     val idx = row * 3 + col
@@ -80,13 +83,15 @@ fun SoundboardWidget(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .border(
-                                1.dp,
-                                if (isActive) accent else borderColor,
-                                RoundedCornerShape(3.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(
+                                when {
+                                    isActive -> hig.toggleOn
+                                    pad.label == "+" -> Color.Transparent
+                                    else -> hig.fill
+                                }
                             )
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(if (isActive) accent.copy(alpha = 0.12f) else Color.Transparent)
+                            .then(if (pad.label == "+") Modifier.border(2.dp, hig.fill, RoundedCornerShape(18.dp)) else Modifier)
                             .then(
                                 if (!isEditing) Modifier.combinedClickable(
                                     onClick = {
@@ -108,13 +113,10 @@ fun SoundboardWidget(
                     ) {
                         val isPlus = pad.label == "+"
                         Text(
-                            text = pad.label,
-                            color = if (isActive) accent else if (isPlus) dimColor else contentColor,
-                            fontSize = if (isPlus) 16.sp else 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp,
-                            maxLines = 1,
+                            text = if (isPlus) "+" else pad.label.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                            style = if (isPlus) Hig.type.title1 else Hig.type.headline,
+                            color = if (isActive) hig.onToggleOn else if (isPlus) hig.label3 else hig.label,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
                         )

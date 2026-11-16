@@ -261,21 +261,18 @@ fun HomeScreen(
                         }
 
                         // Badges sit on the corners, outside the tile's clip, like iOS
-                        AnimatedVisibility(
-                            visible = editMode && !isDragging,
-                            enter = scaleIn(tween(200)) + fadeIn(tween(200)),
-                            exit = scaleOut(tween(150)) + fadeOut(tween(150)),
-                            modifier = Modifier.align(Alignment.TopStart).offset((-10).dp, (-10).dp)
-                        ) {
-                            CornerBadge(Icons.Rounded.Remove, "Remove ${nameOf(w.id)}") { onRemoveWidget(w.id) }
-                        }
-                        AnimatedVisibility(
-                            visible = editMode && !isDragging,
-                            enter = scaleIn(tween(200)) + fadeIn(tween(200)),
-                            exit = scaleOut(tween(150)) + fadeOut(tween(150)),
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(10.dp, 10.dp)
-                        ) {
-                            Box {
+                        val badge by animateFloatAsState(if (editMode && !isDragging) 1f else 0f, tween(200), label = "badge")
+                        if (badge > 0.01f) {
+                            Box(
+                                Modifier.align(Alignment.TopStart).offset((-10).dp, (-10).dp)
+                                    .graphicsLayer { alpha = badge; scaleX = badge; scaleY = badge }
+                            ) {
+                                CornerBadge(Icons.Rounded.Remove, "Remove ${nameOf(w.id)}") { onRemoveWidget(w.id) }
+                            }
+                            Box(
+                                Modifier.align(Alignment.BottomEnd).offset(10.dp, 10.dp)
+                                    .graphicsLayer { alpha = badge; scaleX = badge; scaleY = badge }
+                            ) {
                                 CornerBadge(Icons.Rounded.OpenInFull, "${nameOf(w.id)} options") { menuFor = w.id }
                                 ContextMenu(
                                     expanded = menuFor == w.id,

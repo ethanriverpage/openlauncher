@@ -41,7 +41,7 @@ val InterDisplay = FontFamily(
  * HIG text styles, sized up from iOS points for arm's-length reading on a dash screen.
  * [scale] is the user's Text Size setting.
  */
-class HigType(scale: Float) {
+class HigType(private val scale: Float) {
     private fun s(v: Float): TextUnit = (v * scale).sp
     private val tnum = "tnum"
 

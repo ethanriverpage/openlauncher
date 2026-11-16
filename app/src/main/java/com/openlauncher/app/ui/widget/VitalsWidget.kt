@@ -1,5 +1,10 @@
 package com.openlauncher.app.ui.widget
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Memory
+import com.openlauncher.app.ui.components.WidgetCaption
+import com.openlauncher.app.ui.theme.Hig
+
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
@@ -36,7 +41,6 @@ fun VitalsWidget(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val labelColor = if (isDayMode) Color(0xFF666666) else androidx.compose.material3.MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f)
 
     var cpuUsage by remember { mutableFloatStateOf(20f) }
     var ramUsedPercent by remember { mutableFloatStateOf(45f) }
@@ -163,229 +167,56 @@ fun VitalsWidget(
         }
     }
 
-    // Warning colors for diagnostics
-    val cpuColor = if (cpuUsage > 85f) Color(0xFFDD5555) else if (cpuUsage > 65f) Color(0xFFE6A23C) else accent
-    val ramColor = if (ramUsedPercent > 90f) Color(0xFFDD5555) else if (ramUsedPercent > 75f) Color(0xFFE6A23C) else accent
-    val tempColor = if (temperature > 75f) Color(0xFFDD5555) else if (temperature > 60f) Color(0xFFE6A23C) else accent
+    // Neutral when healthy; system orange/red only when something needs attention
+    val c = Hig.colors
+    fun level(v: Float, warn: Float, crit: Float) = when { v > crit -> c.red; v > warn -> c.orange; else -> c.label2 }
+    val gauges = listOf(
+        Triple("CPU", cpuUsage, "%.0f%%".format(cpuUsage)) to level(cpuUsage, 65f, 85f),
+        Triple("Memory", ramUsedPercent, ramDisplayGb) to level(ramUsedPercent, 75f, 90f),
+        Triple("Heat", temperature, "%.0f°".format(temperature)) to level(temperature, 60f, 75f),
+    )
 
-    Column(
-        modifier = modifier.padding(start = 14.dp, end = 14.dp, top = 22.dp, bottom = 8.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        if (asBars) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)
-            ) {
-                BarGauge(
-                    value = cpuUsage,
-                    label = "CPU",
-                    displayValue = "%.0f%%".format(cpuUsage),
-                    activeColor = cpuColor,
-                    isDayMode = isDayMode,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                BarGauge(
-                    value = ramUsedPercent,
-                    label = "RAM",
-                    displayValue = ramDisplayGb,
-                    activeColor = ramColor,
-                    isDayMode = isDayMode,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                BarGauge(
-                    value = temperature,
-                    label = "TEMP",
-                    displayValue = "%.0f°".format(temperature),
-                    activeColor = tempColor,
-                    isDayMode = isDayMode,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                DialGauge(
-                    value = cpuUsage,
-                    label = "CPU",
-                    displayValue = "%.0f%%".format(cpuUsage),
-                    activeColor = cpuColor,
-                    isDayMode = isDayMode,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-
-                DialGauge(
-                    value = ramUsedPercent,
-                    label = "RAM",
-                    displayValue = ramDisplayGb,
-                    activeColor = ramColor,
-                    isDayMode = isDayMode,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-
-                DialGauge(
-                    value = temperature,
-                    label = "TEMP",
-                    displayValue = "%.0f°".format(temperature),
-                    activeColor = tempColor,
-                    isDayMode = isDayMode,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BarGauge(
-    value: Float,
-    label: String,
-    displayValue: String,
-    activeColor: Color,
-    isDayMode: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val trackColor = if (isDayMode) Color(0xFFD6D6D6) else androidx.compose.material3.MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
-    val contentColor = if (isDayMode) Color(0xFF111111) else androidx.compose.material3.MaterialTheme.colorScheme.onBackground
-    val labelColor = if (isDayMode) Color(0xFF666666) else androidx.compose.material3.MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f)
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+    Column(modifier.padding(24.dp)) {
+        WidgetCaption("Head Unit", Icons.Rounded.Memory)
+        if (asBars) Column(
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+        ) {
+            gauges.forEach { (g, col) -> BarGauge(g.second, g.first, g.third, col) }
+        } else Row(
+            Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = label,
-                color = labelColor,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
-            )
-            Text(
-                text = displayValue,
-                color = contentColor,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Spacer(Modifier.height(3.dp))
-        val barBorder = if (isDayMode) Modifier.border(0.5.dp, Color.Black.copy(alpha = 0.08f), RoundedCornerShape(2.dp)) else Modifier
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(trackColor)
-                .then(barBorder)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(fraction = (value / 100f).coerceIn(0f, 1f))
-                    .background(activeColor)
-            )
+            gauges.forEach { (g, col) -> DialGauge(g.second, g.first, g.third, col, Modifier.weight(1f)) }
         }
     }
 }
 
 @Composable
-private fun DialGauge(
-    value: Float,
-    label: String,
-    displayValue: String,
-    activeColor: Color,
-    isDayMode: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val trackColor = if (isDayMode) Color(0xFFD6D6D6) else androidx.compose.material3.MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
-    val contentColor = if (isDayMode) Color(0xFF111111) else androidx.compose.material3.MaterialTheme.colorScheme.onBackground
-    val labelColor = if (isDayMode) Color(0xFF666666) else androidx.compose.material3.MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f)
-
-    BoxWithConstraints(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        val sizePx = minOf(maxWidth, maxHeight)
-        val strokeWidth = 4.5.dp
-
-        Box(
-            modifier = Modifier.size(sizePx),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(modifier = Modifier.fillMaxSize().padding(strokeWidth / 2)) {
-                val sw = strokeWidth.toPx()
-
-                // Background track flat outline (light mode)
-                if (isDayMode) {
-                    drawArc(
-                        color = Color.Black.copy(alpha = 0.16f),
-                        startAngle = 148f,
-                        sweepAngle = 244f,
-                        useCenter = false,
-                        style = Stroke(width = sw + 1.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
-
-                // Background Track Arc (240 degrees sweep starting at 150 degrees)
-                drawArc(
-                    color = trackColor,
-                    startAngle = 150f,
-                    sweepAngle = 240f,
-                    useCenter = false,
-                    style = Stroke(width = sw, cap = StrokeCap.Round)
-                )
-
-                // Active Value flat outline (light mode)
-                if (isDayMode && value > 0f) {
-                    val sweep = 240f * (value / 100f).coerceIn(0f, 1f)
-                    drawArc(
-                        color = Color.Black.copy(alpha = 0.22f),
-                        startAngle = 149f,
-                        sweepAngle = sweep + 2f,
-                        useCenter = false,
-                        style = Stroke(width = sw + 0.8.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
-
-                // Active Value Arc
-                drawArc(
-                    color = activeColor,
-                    startAngle = 150f,
-                    sweepAngle = 240f * (value / 100f).coerceIn(0f, 1f),
-                    useCenter = false,
-                    style = Stroke(width = sw, cap = StrokeCap.Round)
-                )
-            }
-            
-            // Centered text indicators
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = displayValue,
-                    color = contentColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(1.dp))
-                Text(
-                    text = label,
-                    color = labelColor,
-                    fontSize = 7.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
+private fun BarGauge(value: Float, label: String, displayValue: String, color: Color) {
+    val c = Hig.colors
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(label, style = Hig.type.subhead, color = c.label2, modifier = Modifier.width(76.dp))
+        Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(c.fill)) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth((value / 100f).coerceIn(0f, 1f)).clip(RoundedCornerShape(4.dp)).background(color))
         }
+        Text(displayValue, style = Hig.type.headline, color = c.label, textAlign = TextAlign.End, modifier = Modifier.width(80.dp))
+    }
+}
+
+@Composable
+private fun DialGauge(value: Float, label: String, displayValue: String, color: Color, modifier: Modifier) {
+    val c = Hig.colors
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize().padding(4.dp)) {
+                val sw = size.minDimension * 0.1f
+                drawArc(c.fill, 150f, 240f, false, style = Stroke(sw, cap = StrokeCap.Round))
+                drawArc(color, 150f, 240f * (value / 100f).coerceIn(0f, 1f), false, style = Stroke(sw, cap = StrokeCap.Round))
+            }
+            Text(displayValue, style = Hig.type.headline, color = c.label, maxLines = 1)
+        }
+        Text(label, style = Hig.type.footnote, color = c.label2)
     }
 }
