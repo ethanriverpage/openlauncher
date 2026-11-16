@@ -106,7 +106,7 @@ fun PillButton(
             else     -> c.label
         }
         if (icon != null) Icon(icon, null, tint = fg, modifier = Modifier.size(24.dp))
-        Text(text, style = Hig.type.headline, color = fg, maxLines = 1)
+        Text(text, style = Hig.type.headline, color = fg, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
     }
 }
 

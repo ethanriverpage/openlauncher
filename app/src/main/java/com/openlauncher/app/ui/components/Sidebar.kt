@@ -82,11 +82,14 @@ fun Sidebar(
     var dragOffsetPx   by remember { mutableFloatStateOf(0f) }
 
     BoxWithConstraints(modifier) {
-        // Short screens (e.g. 1600×597 dp) shrink the icons rather than scroll them
+        // Short screens shrink the icons rather than scroll them: 1600×597 dp is compact,
+        // 1280×480 dp (TS10 at 240 dpi) is tight.
+        val tight     = !isHorizontal && maxHeight < 540.dp
         val compact   = !isHorizontal && maxHeight < 660.dp
-        val iconSize  = if (compact) 54.dp else 64.dp
-        val navBtnH   = if (compact) 48.dp else 56.dp
-        val slotGap   = if (compact) 10.dp else 12.dp
+        val iconSize  = when { tight -> 46.dp; compact -> 54.dp; else -> 64.dp }
+        val navBtnH   = when { tight -> 42.dp; compact -> 48.dp; else -> 56.dp }
+        val slotGap   = when { tight -> 8.dp;  compact -> 10.dp; else -> 12.dp }
+        val navGap    = if (tight) 4.dp else 6.dp
         val stepPx    = with(LocalDensity.current) { (iconSize + slotGap).toPx() }
 
         fun target(): Int = if (draggingIndex < 0) -1 else
@@ -185,9 +188,9 @@ fun Sidebar(
             }
         } else {
             Column(
-                Modifier.width(104.dp).fillMaxHeight().padding(vertical = 12.dp),
+                Modifier.width(if (tight) 88.dp else 104.dp).fillMaxHeight().padding(vertical = if (tight) 8.dp else 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(if (tight) 8.dp else 10.dp)
             ) {
                 StatusBlock(isWifi, isData, horizontal = false)
                 Column(
@@ -196,8 +199,8 @@ fun Sidebar(
                     verticalArrangement = Arrangement.spacedBy(slotGap, Alignment.CenterVertically)
                 ) { shortcuts() }
                 Column(
-                    Modifier.clip(RoundedCornerShape(22.dp)).background(c.tile).padding(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    Modifier.clip(RoundedCornerShape(if (tight) 20.dp else 22.dp)).background(c.tile).padding(navGap),
+                    verticalArrangement = Arrangement.spacedBy(navGap)
                 ) { nav() }
             }
         }
@@ -223,8 +226,10 @@ private fun StatusBlock(isWifi: Boolean, isData: Boolean, horizontal: Boolean) {
             delay(60_000L - (System.currentTimeMillis() % 60_000L))
         }
     }
-    val h = now.get(Calendar.HOUR).let { if (it == 0) 12 else it }
-    val time = "%d:%02d".format(h, now.get(Calendar.MINUTE))
+    // Same 12/24-hour rule as the Clock widget, so the two never disagree
+    val is24 = android.text.format.DateFormat.is24HourFormat(androidx.compose.ui.platform.LocalContext.current)
+    val time = if (is24) "%02d:%02d".format(now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
+               else "%d:%02d".format(now.get(Calendar.HOUR).let { if (it == 0) 12 else it }, now.get(Calendar.MINUTE))
     val icons: @Composable () -> Unit = {
         if (isWifi) Icon(Icons.Rounded.Wifi, "Wi-Fi", tint = c.label2, modifier = Modifier.size(16.dp))
         else if (isData) Icon(Icons.Rounded.SignalCellularAlt, "Mobile data", tint = c.label2, modifier = Modifier.size(16.dp))

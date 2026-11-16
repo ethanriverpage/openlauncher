@@ -1,6 +1,7 @@
 package com.openlauncher.app.ui.widget
 
 import android.text.format.DateFormat
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -51,7 +52,15 @@ fun ClockWidget(
                 val size = with(density) { min(maxHeight.toPx() * 0.46f, maxWidth.toPx() * 0.30f).toSp() }
                 Column(Modifier.align(Alignment.BottomStart)) {
                     Text(time, style = Hig.type.numeral.copy(fontSize = size, lineHeight = size), color = c.label, maxLines = 1)
-                    Text(dateString(cal), style = Hig.type.title2.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium), color = c.label2, maxLines = 1)
+                    // Full date when it fits, "Mon, Nov 16" on narrow tiles; never wraps mid-date
+                    val dateStyle = Hig.type.title2.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                    val measurer = rememberTextMeasurer()
+                    val full = dateString(cal, short = false)
+                    val fits = remember(full, maxWidth, dateStyle) {
+                        measurer.measure(full, dateStyle, maxLines = 1, softWrap = false).size.width <= with(density) { maxWidth.toPx() }
+                    }
+                    Text(if (fits) full else dateString(cal, short = true), style = dateStyle, color = c.label2,
+                        maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
             ClockStyle.ANALOG -> AnalogFace(cal, Modifier.fillMaxSize().padding(top = 28.dp))
@@ -89,8 +98,10 @@ private fun AnalogFace(cal: Calendar, modifier: Modifier) {
     }
 }
 
-private fun dateString(cal: Calendar): String {
+private fun dateString(cal: Calendar, short: Boolean): String {
     val days = arrayOf("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
     val months = arrayOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
-    return "${days[cal.get(Calendar.DAY_OF_WEEK) - 1]}, ${months[cal.get(Calendar.MONTH)]} ${cal.get(Calendar.DAY_OF_MONTH)}"
+    val d = days[cal.get(Calendar.DAY_OF_WEEK) - 1]; val m = months[cal.get(Calendar.MONTH)]
+    return if (short) "${d.take(3)}, ${m.take(3)} ${cal.get(Calendar.DAY_OF_MONTH)}"
+           else "$d, $m ${cal.get(Calendar.DAY_OF_MONTH)}"
 }

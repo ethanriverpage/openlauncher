@@ -118,26 +118,26 @@ private fun MediaPlayer(
     val connected by MediaListenerService.isConnected.collectAsState()
 
     if (state == null || state.title.isEmpty()) {
-        Column(
-            modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)
-        ) {
-            when {
-                hasCarPlay || hasAuto -> {
-                    Text("Phone projection", style = Hig.type.title2, color = c.label)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (hasCarPlay) PillButton("Open CarPlay", onLaunchCarPlay, icon = Icons.Rounded.PhoneIphone, primary = true)
-                        if (hasAuto) PillButton("Open Android Auto", onLaunchAndroidAuto, icon = Icons.Rounded.DirectionsCar, primary = !hasCarPlay)
+        // Caption top-left like every other widget; the source button owns the top-right corner
+        Box(modifier.padding(24.dp)) {
+            WidgetCaption("Now Playing", Icons.Rounded.MusicNote, Modifier.align(Alignment.TopStart).padding(end = 56.dp))
+            Column(
+                Modifier.align(Alignment.BottomStart).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                when {
+                    hasCarPlay || hasAuto -> {
+                        Text("Nothing playing", style = Hig.type.headline, color = c.label2, maxLines = 1)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            if (hasCarPlay) PillButton("CarPlay", onLaunchCarPlay, icon = Icons.Rounded.PhoneIphone, primary = true)
+                            if (hasAuto) PillButton("Android Auto", onLaunchAndroidAuto, icon = Icons.Rounded.DirectionsCar, primary = !hasCarPlay)
+                        }
                     }
-                }
-                !connected -> {
-                    Text("Not Playing", style = Hig.type.title2, color = c.label)
-                    Text("Allow notification access in Settings to show media here.", style = Hig.type.subhead, color = c.label2)
-                }
-                else -> {
-                    Icon(Icons.Rounded.MusicNote, null, tint = c.label3, modifier = Modifier.size(44.dp))
-                    Text("Not Playing", style = Hig.type.title2, color = c.label)
+                    !connected -> {
+                        Text("Not Playing", style = Hig.type.title2, color = c.label, maxLines = 1)
+                        Text("Allow notification access in Settings to show media here.", style = Hig.type.subhead, color = c.label2, maxLines = 2)
+                    }
+                    else -> Text("Not Playing", style = Hig.type.title2, color = c.label, maxLines = 1)
                 }
             }
         }

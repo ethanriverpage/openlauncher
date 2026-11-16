@@ -144,8 +144,9 @@ class SettingsRepository(private val context: Context) {
     }
 
     /**
-     * Design v2 (HIG redesign): the type scale is sized for a 1.0 baseline (the old default
-     * was 1.2), and a white or black accent can't serve as a tint, so both reset once.
+     * Design v2 (HIG redesign): type and layout are sized for a 1.0 baseline (old installs ran
+     * text and display scale up to 1.5 to compensate for small elements), and a white or black
+     * accent can't serve as a tint, so all three reset once.
      * Custom background colours, gradients, fonts and font colour are no longer applied.
      */
     private fun migrateDesign(prefs: Preferences, s: AppSettings): AppSettings {
@@ -154,6 +155,7 @@ class SettingsRepository(private val context: Context) {
         val lum = accent.luminance()
         return s.copy(
             textScale   = 1.0f,
+            uiScale     = 1.0f,
             accentColor = if (lum > 0.85f || lum < 0.02f) AppSettings().accentColor else s.accentColor,
         )
     }
