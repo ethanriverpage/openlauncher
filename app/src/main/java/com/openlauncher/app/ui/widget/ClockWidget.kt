@@ -50,14 +50,15 @@ fun ClockWidget(
                 val h = cal.get(Calendar.HOUR_OF_DAY).let { if (is24) it else (it % 12).let { x -> if (x == 0) 12 else x } }
                 val time = if (is24) "%02d:%02d".format(h, cal.get(Calendar.MINUTE)) else "%d:%02d".format(h, cal.get(Calendar.MINUTE))
                 val size = with(density) { min(maxHeight.toPx() * 0.46f, maxWidth.toPx() * 0.30f).toSp() }
+                val tileWidthPx = with(density) { maxWidth.toPx() }
                 Column(Modifier.align(Alignment.BottomStart)) {
                     Text(time, style = Hig.type.numeral.copy(fontSize = size, lineHeight = size), color = c.label, maxLines = 1)
                     // Full date when it fits, "Mon, Nov 16" on narrow tiles; never wraps mid-date
                     val dateStyle = Hig.type.title2.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                     val measurer = rememberTextMeasurer()
                     val full = dateString(cal, short = false)
-                    val fits = remember(full, maxWidth, dateStyle) {
-                        measurer.measure(full, dateStyle, maxLines = 1, softWrap = false).size.width <= with(density) { maxWidth.toPx() }
+                    val fits = remember(full, tileWidthPx, dateStyle) {
+                        measurer.measure(full, dateStyle, maxLines = 1, softWrap = false).size.width <= tileWidthPx
                     }
                     Text(if (fits) full else dateString(cal, short = true), style = dateStyle, color = c.label2,
                         maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
