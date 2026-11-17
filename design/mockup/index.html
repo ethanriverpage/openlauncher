@@ -30,7 +30,7 @@ body{background:var(--ws-bg);color:var(--ws-text);font-family:Inter,system-ui,sa
 .ws-bar select{font:inherit;background:var(--ws-bg);color:var(--ws-text);border:0;border-radius:8px;padding:5px 8px}
 .ws-stage{flex:1;display:grid;place-items:center;overflow:hidden;position:relative}
 .ws-note{position:absolute;bottom:8px;left:16px;right:16px;font-size:12px;color:var(--ws-dim);text-align:center}
-.ws-scaler{transform-origin:center center}
+.ws-scaler{position:absolute;left:50%;top:50%;transform-origin:center center}
 
 /* ───────── Head unit design system ───────── */
 .hu{
@@ -304,7 +304,48 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .mini{width:40px;height:40px;border-radius:10px}
 .mini .ms{font-size:24px}
 
+/*MOTION*/
+/* ───────── Motion (mirrors ui/theme/Motion.kt) ─────────
+   feedback 150ms · state 240ms · expo ease-out · pop spring · settle spring · 700ms theme dissolve */
+.hu{--ease-out:cubic-bezier(.16,1,.3,1);--pop:cubic-bezier(.34,1.45,.64,1)}
+/* Edit jiggle: the one repeating motion, parked-only. `rotate` is its own property, so it
+   composes with the tile's edit-mode scale instead of fighting it. */
+@keyframes jiggle{0%{rotate:-.35deg}50%{rotate:.35deg}100%{rotate:-.35deg}}
+.home.editing .tile:not(.lifted){animation:jiggle .52s ease-in-out infinite}
+.hu[data-capture-nojiggle] .home.editing .tile{animation:none}
+.home.editing .tile:nth-child(3n){animation-delay:-.17s}
+.home.editing .tile:nth-child(3n+1){animation-delay:-.35s}
+.home.editing .tile:nth-child(4n){animation-duration:.56s}
+/* Entering edit mode: badges pop, the bar opens */
+@keyframes badgePop{0%{opacity:0;transform:scale(.4)}100%{opacity:1;transform:none}}
+.home.edit-in .badge{animation:badgePop .42s var(--pop) both}
+.home.edit-in .badge.sz{animation-delay:.04s}
+@keyframes barOpen{from{height:0}}
+.home.edit-in .editbar{animation:barOpen .3s var(--ease-out)}
+/* Menus grow from their anchor corner */
+.menu{animation:menuPop .3s var(--pop);transform-origin:var(--origin,top left)}
+@keyframes menuPop{from{opacity:0;transform:scale(.86)}}
+.menu.leaving,.scrim.leaving{animation:menuOut .11s ease-in forwards;pointer-events:none}
+@keyframes menuOut{to{opacity:0;transform:scale(.94)}}
+/* Segmented thumb slides: while a thumb is in flight the target button stays clear */
+.tmpclip{position:relative;display:inline-block;overflow:hidden;padding:.06em .04em 0}
+.tmpclip .tmp{display:block}
+.tmpclip .ghost{position:absolute;left:.04em;top:.06em;pointer-events:none}
+.seg{position:relative}
+.seg button{position:relative;z-index:1}
+.seg .thumb{position:absolute;z-index:0;top:3px;bottom:3px;border-radius:9px;background:var(--tile);box-shadow:0 1px 3px rgba(0,0,0,.2);pointer-events:none}
+.hu[data-mode="dark"] .seg .thumb{background:#636366;box-shadow:none}
+.seg button.thumb-hold{background:transparent!important;box-shadow:none!important}
+/* Theme dissolve (View Transitions): only the head unit cross-fades */
+.hu{view-transition-name:hu}
+::view-transition-old(hu),::view-transition-new(hu){animation-duration:.7s;animation-timing-function:cubic-bezier(.4,0,.2,1)}
+::view-transition-old(root),::view-transition-new(root){animation:none}
+/* Reduced motion, from the OS or the workspace toggle: cuts, no jiggle */
+.hu[data-motion="reduced"] *,.hu[data-motion="reduced"] *::before,.hu[data-motion="reduced"] *::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}
+.hu[data-motion="reduced"] .tile{animation:none!important}
+
 @media (prefers-reduced-motion: reduce){
+  .home.editing .tile{animation:none!important}
   .hu *,.hu *::before,.hu *::after{animation-duration:1ms!important;transition-duration:1ms!important}
 }
 </style>
@@ -322,6 +363,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   <div class="ws-group"><label>Theme</label><span class="ws-seg" data-ws="mode"><button data-v="dark">Night</button><button data-v="light">Day</button></span></div>
   <div class="ws-group"><label>Sidebar</label><span class="ws-seg" data-ws="side"><button data-v="left">Left</button><button data-v="right">Right</button><button data-v="bottom">Bottom</button></span></div>
   <div class="ws-group"><label>Media</label><span class="ws-seg" data-ws="media"><button data-v="playing">Playing</button><button data-v="idle">Nothing</button><button data-v="carplay">CarPlay</button></span></div>
+  <div class="ws-group"><label>Motion</label><span class="ws-seg" data-ws="motion"><button data-v="full">Full</button><button data-v="reduced">Reduced</button></span></div>
+  <div class="ws-group"><label>Speed</label><span class="ws-seg" data-ws="speed"><button data-v="1">1×</button><button data-v="0.25">¼×</button></span></div>
   <div class="ws-group"><label>Network</label><span class="ws-seg" data-ws="online"><button data-v="1">Online</button><button data-v="0">Offline</button></span></div>
   <div class="ws-group"><button class="ws-seg" style="padding:4px 10px;color:var(--ws-text)" id="reset">Reset</button></div>
 </div>
@@ -374,7 +417,7 @@ const initial = () => ({
   carplayApp:'CarPlay', aaApp:'Android Auto', radioApp:'Radio', section:'appearance',
   clim:{fan:3,left:72,right:70,auto:true,ac:true,recirc:false,fdef:false,rdef:false,dual:false,air:'face_floor',rearOpen:false,
         rear:{on:true,auto:true,temp:70,fan:2}},
-  wallpaper:false, dim:.55, menu:null, toast:null, band:'FM1', freq:101.5, notif:true, location:true, overlay:false, pads:['Horn','Coin','Jump','Boom',null,null]
+  wallpaper:false, dim:.55, motion:'full', speed:'1', menu:null, toast:null, band:'FM1', freq:101.5, notif:true, location:true, overlay:false, pads:['Horn','Coin','Jump','Boom',null,null]
 });
 let S = initial();
 try{ const saved = JSON.parse(localStorage.getItem('ol-mock')||'null'); if(saved) S = {...S, ...saved, menu:null, toast:null, gallery:false, editing:false}; }catch(e){}
@@ -489,18 +532,18 @@ function climate(){
   const c=S.clim, off=c.fan===0;
   if(c.rearOpen){ const r=c.rear;
     return `<section class="screen clim" aria-label="Rear climate">
-     <div class="zone"><span class="lbl">Rear</span><span class="tmp">${fmtT(r.temp)}</span><div class="stp"><button class="stepb" aria-label="Rear cooler" data-a="rtemp" data-v="-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Rear warmer" data-a="rtemp" data-v="1">${ms('keyboard_arrow_up')}</button></div></div>
-     <div class="fanzone"><div class="fanrow"><button class="stepb" aria-label="Rear fan lower" data-a="rfan" data-v="-1">${ms('remove')}</button><div class="segs">${[...Array(7)].map((_,i)=>`<i class="${i<r.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Rear fan higher" data-a="rfan" data-v="1">${ms('add')}</button></div>
+     <div class="zone"><span class="lbl">Rear</span><span class="tmpclip"><span class="tmp" data-k="rear">${fmtT(r.temp)}</span></span><div class="stp"><button class="stepb" aria-label="Rear cooler" data-a="rtemp" data-v="-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Rear warmer" data-a="rtemp" data-v="1">${ms('keyboard_arrow_up')}</button></div></div>
+     <div class="fanzone"><div class="fanrow"><button class="stepb" aria-label="Rear fan lower" data-a="rfan" data-v="-1">${ms('remove')}</button><div class="segs" data-k="rear">${[...Array(7)].map((_,i)=>`<i class="${i<r.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Rear fan higher" data-a="rfan" data-v="1">${ms('add')}</button></div>
        <div class="t-foot" style="text-align:center">Rear fan ${r.fan} of 7</div></div>
      <div class="zone" style="justify-content:center;gap:14px"><button class="pill" data-a="rearback">${ms('chevron_left')}Front</button></div>
-     <div class="toggles"><button class="tg" aria-pressed="${r.auto}" data-a="rtog" data-v="auto"><span class="ab">AUTO</span>Rear Auto</button><button class="tg" aria-pressed="${r.on}" data-a="rtog" data-v="on">${ms('power_settings_new')}${r.on?'Rear On':'Rear Off'}</button></div></section>`; }
+     <div class="toggles"><button class="tg" aria-pressed="${r.auto}" data-a="rtog" data-v="auto">${ms('hdr_auto')}Rear Auto</button><button class="tg" aria-pressed="${r.on}" data-a="rtog" data-v="on">${ms('power_settings_new')}${r.on?'Rear On':'Rear Off'}</button></div></section>`; }
   const tg=(k,label,ic,ab)=>`<button class="tg" aria-pressed="${k==='off'?off:!!c[k]}" data-a="ctog" data-v="${k}">${ab?`<span class="ab" aria-label="${label}">${ab}</span>`:ms(ic)+label}</button>`;
   return `<section class="screen clim ${off?'off':''}" aria-label="Climate">
-   <div class="zone"><span class="lbl">Driver</span><span class="tmp">${fmtT(c.left)}</span><div class="stp"><button class="stepb" aria-label="Driver cooler" data-a="temp" data-v="left,-1" ${c.left<=60?'disabled':''}>${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Driver warmer" data-a="temp" data-v="left,1" ${c.left>=85?'disabled':''}>${ms('keyboard_arrow_up')}</button></div></div>
-   <div class="fanzone"><span class="lbl" style="text-align:center;font-size:calc(17px*var(--ts));color:var(--label2);font-weight:600">${off?'Off':'Fan '+c.fan}</span><div class="fanrow"><button class="stepb" aria-label="Fan lower" data-a="fan" data-v="-1">${ms('remove')}</button><div class="segs" aria-label="Fan ${c.fan} of 7">${[...Array(7)].map((_,i)=>`<i class="${i<c.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Fan higher" data-a="fan" data-v="1">${ms('add')}</button></div>
+   <div class="zone"><span class="lbl">Driver</span><span class="tmpclip"><span class="tmp" data-k="left">${fmtT(c.left)}</span></span><div class="stp"><button class="stepb" aria-label="Driver cooler" data-a="temp" data-v="left,-1" ${c.left<=60?'disabled':''}>${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Driver warmer" data-a="temp" data-v="left,1" ${c.left>=85?'disabled':''}>${ms('keyboard_arrow_up')}</button></div></div>
+   <div class="fanzone"><span class="lbl" style="text-align:center;font-size:calc(17px*var(--ts));color:var(--label2);font-weight:600">${off?'Off':'Fan '+c.fan}</span><div class="fanrow"><button class="stepb" aria-label="Fan lower" data-a="fan" data-v="-1">${ms('remove')}</button><div class="segs" data-k="front" aria-label="Fan ${c.fan} of 7">${[...Array(7)].map((_,i)=>`<i class="${i<c.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Fan higher" data-a="fan" data-v="1">${ms('add')}</button></div>
      <div class="airrow" role="group" aria-label="Airflow">${[['face','airline_seat_recline_normal'],['face_floor','airline_seat_recline_extra'],['floor','airline_seat_legroom_normal'],['floor_def','windshield_defrost_front']].map(([k,i])=>`<button aria-label="Airflow ${k.replace('_',' and ')}" aria-pressed="${c.air===k}" data-a="air" data-v="${k}">${ms(i)}</button>`).join('')}</div></div>
-   <div class="zone"><span class="lbl">Passenger${c.dual?'':' · Synced'}</span><span class="tmp">${fmtT(c.dual?c.right:c.left)}</span><div class="stp"><button class="stepb" aria-label="Passenger cooler" data-a="temp" data-v="right,-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Passenger warmer" data-a="temp" data-v="right,1">${ms('keyboard_arrow_up')}</button></div></div>
-   <div class="toggles">${tg('off','Off','power_settings_new')}${tg('auto','Auto',null,'AUTO')}${tg('ac','A/C',null,'A/C')}${tg('recirc','Recirculate','autorenew')}${tg('fdef','Front Defrost','windshield_defrost_front')}${tg('rdef','Rear Defrost','windshield_defrost_rear')}${tg('dual','Dual',null,'DUAL')}
+   <div class="zone"><span class="lbl">Passenger${c.dual?'':' · Synced'}</span><span class="tmpclip"><span class="tmp" data-k="right">${fmtT(c.dual?c.right:c.left)}</span></span><div class="stp"><button class="stepb" aria-label="Passenger cooler" data-a="temp" data-v="right,-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Passenger warmer" data-a="temp" data-v="right,1">${ms('keyboard_arrow_up')}</button></div></div>
+   <div class="toggles">${tg('off','Off','power_settings_new')}${tg('auto','Auto','hdr_auto')}${tg('ac','A/C','ac_unit')}${tg('recirc','Recirculate','autorenew')}${tg('fdef','Front Defrost','windshield_defrost_front')}${tg('rdef','Rear Defrost','windshield_defrost_rear')}${tg('dual','Dual','group')}
      <button class="tg" data-a="rearopen">${ms('airline_seat_recline_normal')}Rear Seats</button></div></section>`;
 }
 const SECTIONS=[
@@ -551,11 +594,105 @@ function menuHTML(){
       + (m.id==='CLOCK'?`<div class="gapline"></div><button data-a="set" data-v="clockStyle,${S.clockStyle==='digital'?'analog':'digital'}">${S.clockStyle==='digital'?'Analog Face':'Digital Face'}${ms('schedule')}</button>`:''); }
   if(m.type==='short'){ const n=S.shortcuts[m.i]; items=`<button data-a="assign" data-v="${m.i}">${n?'Change App':'Choose App'}${ms('swap_horiz')}</button>${n?`<button data-a="moveshort" data-v="${m.i},-1">Move Up${ms('arrow_upward')}</button><button data-a="moveshort" data-v="${m.i},1">Move Down${ms('arrow_downward')}</button><div class="gapline"></div><button class="danger" data-a="rmshort" data-v="${m.i}">Remove${ms('delete')}</button>`:''}`; }
   if(m.type==='reset'){ items=`<div style="padding:18px 18px 12px"><div class="t-head">Reset all settings?</div><div class="t-foot" style="margin-top:4px">Layout, shortcuts and appearance go back to defaults.</div></div><button class="danger" data-a="reset">Reset</button><button data-a="closemenu" style="font-weight:600">Cancel</button>`; }
-  return `<div class="scrim" style="background:transparent" data-a="closemenu"></div><div class="menu" role="menu" style="left:${m.x}px;top:${m.y}px">${items}</div>`;
+  return `<div class="scrim" style="background:transparent" data-a="closemenu"></div><div class="menu" role="menu" style="left:${m.x}px;top:${m.y}px;--origin:${m.origin||'top left'}">${items}</div>`;
 }
 
 /* ── Render ── */
+/* ── Motion layer ──────────────────────────────────────────────────────────
+   render() rebuilds the head unit's DOM, so nothing can transition by itself. Each render
+   snapshots what is on screen, rebuilds, then animates the difference:
+   tiles glide (FLIP), colours fade from their old values, segmented thumbs slide,
+   temperatures roll, menus leave, and day/night dissolves through a View Transition. */
+const reduced = () => S.motion==='reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+const EASE = 'cubic-bezier(.16,1,.3,1)', SETTLE = 'cubic-bezier(.22,1,.36,1)';
+const rate = () => +S.speed || 1;
+const anim = (el,kf,o) => { if(!el) return; const a=el.animate(kf,{...o,duration:o.duration/rate(),delay:(o.delay||0)/rate()}); return a; };
+const COLOR_SEL = '.nav button, .tg, .airrow button, .segs i, .stepb';
+const keyOf = el => {
+  if(el.matches('.segs i')) return 'bar:'+el.parentElement.dataset.k+':'+[...el.parentElement.children].indexOf(el);
+  return (el.dataset.a||el.className)+':'+(el.dataset.v||'')+':'+(el.getAttribute('aria-label')||'');
+};
+function snapshot(){
+  const snap={tiles:{},colors:{},segs:[],temps:{},bars:{},menu:null,editing:!!$('.home.editing'),mode:hu.dataset.mode};
+  hu.querySelectorAll('.tile[data-id]').forEach(t=>snap.tiles[t.dataset.id]=t.getBoundingClientRect());
+  hu.querySelectorAll(COLOR_SEL).forEach(el=>{const cs=getComputedStyle(el);snap.colors[keyOf(el)]={bg:cs.backgroundColor,fg:cs.color};});
+  hu.querySelectorAll('.seg').forEach(g=>{const b=g.querySelector('button[aria-pressed="true"]');const gr=g.getBoundingClientRect();
+    snap.segs.push(b?{i:[...g.querySelectorAll('button')].indexOf(b),l:b.getBoundingClientRect().left-gr.left,w:b.getBoundingClientRect().width}:null);});
+  hu.querySelectorAll('.tmp[data-k]').forEach(t=>snap.temps[t.dataset.k]=t.textContent);
+  const m=hu.querySelector('.menu'); if(m) snap.menu=m.cloneNode(true);
+  return snap;
+}
+function animateFrom(snap){
+  if(reduced()) return;
+  const s=(+$('#scaler').dataset.s||1)*S.uiScale;
+  // 1. Edit mode entry: badges pop, bar opens (CSS, keyed by a one-shot class)
+  const homeEl=$('.home');
+  if(homeEl && S.editing && !snap.editing){ homeEl.classList.add('edit-in'); setTimeout(()=>homeEl.classList.remove('edit-in'),700/rate()); }
+  // 2. Tiles glide: FLIP from where each one was (a dropped tile starts where it was released)
+  hu.querySelectorAll('.tile[data-id]').forEach(t=>{
+    const a=snap.tiles[t.dataset.id]; if(!a) return;
+    const b=t.getBoundingClientRect();
+    if(Math.abs(a.left-b.left)<1 && Math.abs(a.top-b.top)<1 && Math.abs(a.width-b.width)<1 && Math.abs(a.height-b.height)<1) return;
+    const sEnd=S.editing?.97:1, lw=t.offsetWidth, lh=t.offsetHeight;
+    const dx=((a.left+a.width/2)-(b.left+b.width/2))/s, dy=((a.top+a.height/2)-(b.top+b.height/2))/s;
+    t.style.zIndex=4;
+    const an=anim(t,[{transform:`translate(${dx}px,${dy}px) scale(${a.width/s/lw},${a.height/s/lh})`},{transform:`scale(${sEnd})`}],{duration:420,easing:SETTLE});
+    an&&an.finished.then(()=>t.style.zIndex='').catch(()=>{});
+  });
+  // 3. Colours fade from their old values: nav selection, toggles, fan bars (bars in sequence)
+  hu.querySelectorAll(COLOR_SEL).forEach(el=>{
+    const old=snap.colors[keyOf(el)]; if(!old) return; const cs=getComputedStyle(el);
+    if(old.bg===cs.backgroundColor && old.fg===cs.color) return;
+    const i=el.matches('.segs i')?[...el.parentElement.children].indexOf(el):0;
+    anim(el,[{backgroundColor:old.bg,color:old.fg},{backgroundColor:cs.backgroundColor,color:cs.color}],{duration:240,delay:18*i,easing:EASE,fill:'backwards'});
+  });
+  // 4. Segmented thumbs slide between segments
+  hu.querySelectorAll('.seg').forEach((g,gi)=>{
+    const was=snap.segs[gi], b=g.querySelector('button[aria-pressed="true"]'); if(!was||!b) return;
+    const btns=[...g.querySelectorAll('button')]; if(btns.indexOf(b)===was.i) return;
+    const gr=g.getBoundingClientRect(), br=b.getBoundingClientRect();
+    const th=document.createElement('i'); th.className='thumb'; g.prepend(th); b.classList.add('thumb-hold');
+    // Labels change colour with the thumb, not ahead of it
+    const oldOn=btns[was.i], onC=getComputedStyle(b).color, offC=oldOn?getComputedStyle(oldOn).color:onC;
+    anim(b,[{color:offC},{color:onC}],{duration:220,delay:120,easing:'ease-out',fill:'backwards'});
+    if(oldOn) anim(oldOn,[{color:onC},{color:offC}],{duration:160,easing:'ease-out',fill:'backwards'});
+    const an=anim(th,[{left:was.l/s+'px',width:was.w/s+'px'},{left:(br.left-gr.left)/s+'px',width:br.width/s+'px'}],{duration:340,easing:'cubic-bezier(.3,1.2,.5,1)',fill:'forwards'});
+    const done=()=>{th.remove();b.classList.remove('thumb-hold');}; an?an.finished.then(done).catch(done):done();
+  });
+  // 5. Temperatures roll the way they moved, clipped to their own line like an odometer:
+  //    warmer rises in from below, cooler drops in from above
+  hu.querySelectorAll('.tmp[data-k]').forEach(t=>{
+    const before=snap.temps[t.dataset.k], now=t.textContent; if(before===undefined||before===now) return;
+    const f=parseFloat(before), n=parseFloat(now), dir=isNaN(f)||isNaN(n)?0:(n>f?1:-1);
+    const ghost=t.cloneNode(true); ghost.textContent=before; ghost.removeAttribute('data-k'); ghost.classList.add('ghost');
+    t.parentElement.appendChild(ghost);
+    // Same distance, same curve: old and new stay exactly one line apart, so they never overlap
+    const h=t.parentElement.offsetHeight, o={duration:300,easing:EASE};
+    anim(t,[{transform:`translateY(${dir*h}px)`,opacity:dir?1:0},{transform:'none',opacity:1}],{...o,fill:'backwards'});
+    const g=anim(ghost,[{transform:'none',opacity:1},{transform:`translateY(${-dir*h}px)`,opacity:dir?1:0}],{...o,fill:'forwards'});
+    g?g.finished.then(()=>ghost.remove()).catch(()=>ghost.remove()):ghost.remove();
+  });
+  // 6. A closed menu fades out instead of vanishing
+  if(snap.menu && !hu.querySelector('.menu')){ const m=snap.menu; m.classList.add('leaving'); hu.appendChild(m); setTimeout(()=>m.remove(),160/rate()); }
+}
 function render(){
+  const snap=snapshot();
+  const themeChange = snap.mode && snap.mode!==S.mode && !reduced() && document.startViewTransition;
+  hu.dataset.motion = reduced()?'reduced':'full';
+  // Capture tooling needs finite motion; #nojiggle=true records edit entry without the loop
+  if(S.nojiggle) hu.dataset.captureNojiggle=''; else delete hu.dataset.captureNojiggle;
+  if(themeChange){
+    // The day/night switch dissolves over 700 ms; nothing else animates under it
+    const vt=document.startViewTransition(()=>doRender());
+    vt.ready.then(()=>document.getAnimations().forEach(a=>{ if(String(a.effect?.pseudoElement||'').includes('view-transition')) a.playbackRate=rate(); })).catch(()=>{});
+    return;
+  }
+  doRender(); animateFrom(snap); applyRate();
+}
+function applyRate(){ if(rate()===1) return; hu.getAnimations({subtree:true}).forEach(a=>{ if(!a._r){a.playbackRate=rate();a._r=1;} }); }
+hu.addEventListener('animationstart',applyRate); hu.addEventListener('transitionrun',applyRate);
+
+function doRender(){
   const t=tint();
   hu.dataset.mode=S.mode; hu.dataset.side=S.side;
   hu.style.setProperty('--tint',t); hu.style.setProperty('--on-tint',onTint()); hu.style.setProperty('--ts',S.ts);
@@ -575,12 +712,12 @@ function render(){
 }
 function fit(){
   const st=$('#stage').getBoundingClientRect(); const [w,h]=S.preset.split('x').map(Number);
-  const s=Math.min((st.width-48)/w,(st.height-60)/h,1); $('#scaler').style.transform=`scale(${s})`; $('#scaler').dataset.s=s;
+  const s=Math.min((st.width-48)/w,(st.height-60)/h,1); $('#scaler').style.transform=`translate(-50%,-50%) scale(${s})`; $('#scaler').dataset.s=s;
 }
 addEventListener('resize',()=>fit());
 let toastT; const toast=m=>{S.toast=m;render();clearTimeout(toastT);toastT=setTimeout(()=>{S.toast=null;render();},1800);};
 const menuAt=(el,o)=>{const r=el.getBoundingClientRect(),hr=hu.getBoundingClientRect(),s=+$('#scaler').dataset.s*S.uiScale;
-  let x=(r.right-hr.left)/s+8,y=(r.top-hr.top)/s; const W_=hu.offsetWidth,H_=hu.offsetHeight; if(x+290>W_) x=(r.left-hr.left)/s-290; if(y+300>H_) y=Math.max(12,H_-310); S.menu={...o,x,y};render();};
+  let x=(r.right-hr.left)/s+8,y=(r.top-hr.top)/s; const W_=hu.offsetWidth,H_=hu.offsetHeight; let ox='left',oy='top'; if(x+290>W_){ x=(r.left-hr.left)/s-290; ox='right'; } if(y+300>H_){ y=Math.max(12,H_-310); oy='bottom'; } S.menu={...o,x,y,origin:oy+' '+ox};render();};
 
 /* ── Actions ── */
 const A={
@@ -674,7 +811,7 @@ if(location.hash.length>1){
   for(const [k,v] of p){ if(k==='bare') continue; S[k]= v==='true'?true: v==='false'?false: isNaN(+v)?v:+v; }
   if(p.has('bare')){ S=Object.assign(initial(),Object.fromEntries([...p].filter(([k])=>k!=='bare').map(([k,v])=>[k,v==='true'?true:v==='false'?false:isNaN(+v)?v:+v])));
     document.querySelector('.ws-bar').style.display='none'; document.querySelector('.ws-note').style.display='none';
-    const st=document.getElementById('stage'); st.style.placeItems='start'; fit=()=>{ $('#scaler').style.transform='none'; $('#scaler').dataset.s=1; };
+    const st=document.getElementById('stage'); st.style.placeItems='start'; fit=()=>{ const sc=$('#scaler'); sc.style.transform='none'; sc.style.left='0'; sc.style.top='0'; sc.dataset.s=1; };
     hu.style.borderRadius='0'; hu.style.boxShadow='none'; save=()=>{}; }
 }
 document.fonts?.ready.then(fit);

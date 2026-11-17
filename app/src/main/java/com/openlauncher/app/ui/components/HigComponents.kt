@@ -217,7 +217,11 @@ fun <T> Segmented(
     ) {
         options.forEachIndexed { i, (value, label) ->
             val on = value == selected
-            val fg by animateColorAsState(if (on) c.label else c.label2, HigMotion.feedback(), label = "segment")
+            // The label brightens as the thumb arrives, not before it
+            val fg by animateColorAsState(
+                if (on) c.label else c.label2,
+                if (on) tween(220, delayMillis = 120) else tween(160), label = "segment"
+            )
             Box(
                 Modifier
                     .heightIn(min = 44.dp)

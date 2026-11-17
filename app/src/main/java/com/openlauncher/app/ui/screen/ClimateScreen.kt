@@ -294,7 +294,7 @@ private fun ToggleTile(t: Toggle, modifier: Modifier, onClick: () -> Unit) {
 }
 
 /**
- * A temperature that rolls in the direction it moved, as iOS numeric text does: warmer
+ * A temperature that rolls in the direction it moved, clipped to its line: warmer
  * rises in from below, cooler drops in from above. LO/HI and "--" simply cross-fade.
  */
 @Composable
@@ -306,9 +306,11 @@ private fun RollingNumber(text: String, style: androidx.compose.ui.text.TextStyl
             val to = targetState.removeSuffix("°").toFloatOrNull()
             val dir = if (from == null || to == null) 0 else if (to > from) 1 else -1
             if (dir == 0) fadeIn(HigMotion.state()) togetherWith fadeOut(HigMotion.feedback())
-            else (slideInVertically(HigMotion.state()) { h -> dir * h / 3 } + fadeIn(HigMotion.state())) togetherWith
-                 (slideOutVertically(HigMotion.feedback()) { h -> -dir * h / 3 } + fadeOut(HigMotion.feedback())) using
-                 SizeTransform(clip = false)
+            // Clipped to the number's own line, like an odometer, so old and new never smear
+            // Same distance and curve both ways: the two numbers stay one line apart
+            else slideInVertically(tween(300, easing = EaseOutExpo)) { h -> dir * h } togetherWith
+                 slideOutVertically(tween(300, easing = EaseOutExpo)) { h -> -dir * h } using
+                 SizeTransform(clip = true)
         },
         label = "temp"
     ) { t -> Text(t, style = style, color = color, maxLines = 1) }
