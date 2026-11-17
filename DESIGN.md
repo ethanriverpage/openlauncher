@@ -322,6 +322,16 @@ The system is flat and tonal at rest. Depth is the iOS elevation ladder (ground,
 
 Every interactive element dips to 94% scale under the finger (spring, stiffness 900) with no ripple. Transitions are short tweens (150-260ms fades and expands, 380ms sheet rise) and springs for knobs (damping 0.75, stiffness 700).
 
+Motion tokens live in `ui/theme/Motion.kt` (`HigMotion`): feedback 150ms, state 240ms, both on an expo ease-out (0.16, 1, 0.3, 1); `pop` (spring, damping 0.62, stiffness 650) for things that appear; `settle` (no-bounce spring, stiffness 420) for things that move on the grid.
+
+- **Theme Dissolve.** Day/night changes cross-fade every palette token over 700ms; accent and wallpaper changes over 240ms. Sunset never flashes a light screen into a dark cabin.
+- **Glide, Don't Jump.** Widgets move to a new cell (drop, displacement, resize) on the settle spring, starting from where the finger released them.
+- **Edit Jiggle Is Parked-Only.** The one repeating motion: a 0.35° tile wobble, phase-shifted per tile, only in widget edit mode, and off entirely when system animations are off. Nothing loops on the driving surface.
+- **Selection Slides.** Segmented thumbs slide between segments; the sidebar's selected fill cross-fades between destinations.
+- **Numbers Roll.** Climate temperatures roll in the direction they moved (warmer from below, cooler from above); fan bars fill in sequence.
+- **Menus Grow From Their Anchor.** Context menus pop from the corner they are anchored to and fade out in 110ms.
+- **Remove Animations Is Honoured.** Compose scales every tween and spring by the system animator scale; `rememberReduceMotion()` gates the jiggle.
+
 ### Buttons
 - **Shape:** capsules (50%) for text buttons; rounded rectangles (20dp) for steppers; circles for transport.
 - **Pill Button:** 52dp tall, 22dp horizontal padding, optional 24dp leading glyph, headline label. Primary is solid tint with on-tint text; secondary sits on fill with label text. Disabled text drops to label-3.

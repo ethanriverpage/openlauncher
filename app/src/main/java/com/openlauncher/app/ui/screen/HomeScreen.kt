@@ -21,6 +21,16 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import com.openlauncher.app.ui.theme.HigMotion
+import com.openlauncher.app.ui.theme.rememberReduceMotion
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -195,19 +205,40 @@ fun HomeScreen(
                     }
                 }
 
-                visible.forEach { w ->
+                // Edit-mode jiggle: one shared clock, phase-shifted per tile. It runs only while
+                // editing (parked, by design) and not at all when system animations are off.
+                val reduceMotion = rememberReduceMotion()
+                val jiggle: State<Float>? = if (editMode && !reduceMotion) {
+                    rememberInfiniteTransition(label = "jiggle").animateFloat(
+                        0f, (2 * Math.PI).toFloat(),
+                        infiniteRepeatable(tween(520, easing = LinearEasing)), label = "phase"
+                    )
+                } else null
+                val scope = rememberCoroutineScope()
+
+                visible.forEachIndexed { index, w ->
                     val (pos, width, height) = cellRect(w.gridX, w.gridY, w.spanX, w.spanY)
                     val isDragging = draggingId == w.id
-                    val editScale by animateFloatAsState(if (editMode && !isDragging) 0.97f else 1f, tween(220), label = "edit")
+                    val editScale by animateFloatAsState(if (editMode && !isDragging) 0.97f else 1f, HigMotion.state(), label = "edit")
+                    // Tiles glide to a new cell (a drop, a displacement, a resize) instead of jumping
+                    val target = with(density) { IntOffset(pos.first.roundToPx(), pos.second.roundToPx()) }
+                    val place = remember(w.id) { Animatable(target, IntOffset.VectorConverter) }
+                    val currentTarget by rememberUpdatedState(target)
+                    LaunchedEffect(target) { if (place.targetValue != target) place.animateTo(target, HigMotion.settle) }
                     Box(
                         Modifier
-                            .absoluteOffset(pos.first, pos.second)
-                            .offset { if (isDragging) IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt()) else IntOffset.Zero }
+                            .absoluteOffset { if (isDragging) place.value + IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt()) else place.value }
                             .size(width, height)
-                            .zIndex(if (isDragging) 2f else 0f)
+                            .zIndex(if (isDragging) 2f else if (place.isRunning) 1f else 0f)
                             .graphicsLayer {
                                 val s = if (isDragging) 1.03f else editScale
                                 scaleX = s; scaleY = s
+                                // Read the phase here so the jiggle redraws without recomposing
+                                val ph = jiggle?.value
+                                if (ph != null && !isDragging) {
+                                    // Small: a 0.35° turn already moves a wide tile's corner ~2dp
+                                    rotationZ = 0.35f * kotlin.math.sin(ph + index * 1.7f)
+                                }
                             }
                     ) {
                         // The tile itself
@@ -251,7 +282,20 @@ fun HomeScreen(
                                             onDragEnd = {
                                                 val nx = (w.gridX + (dragOffset.x / stepX).roundToInt()).coerceIn(0, GRID_COLS - w.spanX)
                                                 val ny = (w.gridY + (dragOffset.y / stepY).roundToInt()).coerceIn(0, GRID_ROWS - w.spanY)
-                                                if (nx != w.gridX || ny != w.gridY) onMoveWidget(w.id, nx, ny)
+                                                if (nx != w.gridX || ny != w.gridY) {
+                                                    val released = place.value + IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt())
+                                                    // Undispatched, so the frame that drops the drag offset already has it
+                                                    scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                                                        place.snapTo(released)
+                                                        // If the grid refuses the move, the cell never changes: glide home
+                                                        kotlinx.coroutines.delay(450)
+                                                        if (place.targetValue == released && !place.isRunning) place.animateTo(currentTarget, HigMotion.settle)
+                                                    }
+                                                    onMoveWidget(w.id, nx, ny)
+                                                } else {
+                                                    val released = place.value + IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt())
+                                                    scope.launch(start = CoroutineStart.UNDISPATCHED) { place.snapTo(released); place.animateTo(currentTarget, HigMotion.settle) }
+                                                }
                                                 draggingId = null; dragOffset = Offset.Zero
                                             },
                                             onDragCancel = { draggingId = null; dragOffset = Offset.Zero }
@@ -261,17 +305,20 @@ fun HomeScreen(
                         }
 
                         // Badges sit on the corners, outside the tile's clip, like iOS
-                        val badge by animateFloatAsState(if (editMode && !isDragging) 1f else 0f, tween(200), label = "badge")
+                        val badge by animateFloatAsState(
+                            if (editMode && !isDragging) 1f else 0f,
+                            if (editMode && !isDragging) HigMotion.pop() else HigMotion.feedback(), label = "badge"
+                        )
                         if (badge > 0.01f) {
                             Box(
                                 Modifier.align(Alignment.TopStart).offset((-10).dp, (-10).dp)
-                                    .graphicsLayer { alpha = badge; scaleX = badge; scaleY = badge }
+                                    .graphicsLayer { alpha = badge.coerceIn(0f, 1f); scaleX = badge; scaleY = badge }
                             ) {
                                 CornerBadge(Icons.Rounded.Remove, "Remove ${nameOf(w.id)}") { onRemoveWidget(w.id) }
                             }
                             Box(
                                 Modifier.align(Alignment.BottomEnd).offset(10.dp, 10.dp)
-                                    .graphicsLayer { alpha = badge; scaleX = badge; scaleY = badge }
+                                    .graphicsLayer { alpha = badge.coerceIn(0f, 1f); scaleX = badge; scaleY = badge }
                             ) {
                                 CornerBadge(Icons.Rounded.OpenInFull, "${nameOf(w.id)} options") { menuFor = w.id }
                                 ContextMenu(

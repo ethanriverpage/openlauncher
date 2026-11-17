@@ -1,10 +1,14 @@
 package com.openlauncher.app.ui.theme
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -105,7 +109,8 @@ fun OpenLauncherTheme(
     content: @Composable () -> Unit
 ) {
     val tint = resolveTint(accentArgb, isDayMode)
-    val c = remember(tint, isDayMode, hasWallpaper) { higColors(tint, isDayMode, hasWallpaper) }
+    val target = remember(tint, isDayMode, hasWallpaper) { higColors(tint, isDayMode, hasWallpaper) }
+    val c = animatedPalette(target)
     val type = remember(textScale) { HigType(textScale) }
     val scheme = if (isDayMode) lightColorScheme(
         primary = c.tint, onPrimary = c.onTint, background = c.bg, onBackground = c.label,
@@ -124,3 +129,41 @@ fun OpenLauncherTheme(
         MaterialTheme(colorScheme = scheme, typography = materialTypography(textScale), content = content)
     }
 }
+
+/**
+ * The day/night switch dissolves over [HigMotion.THEME] ms instead of cutting, so sunset
+ * never flashes a white screen into a dark cabin. Accent and wallpaper changes use the
+ * shorter state duration. An interrupted fade restarts from whatever is on screen.
+ */
+@Composable
+private fun animatedPalette(target: HigColors): HigColors {
+    // Plain holders, not state: they are bookkeeping for this composable, not UI inputs
+    val shown = remember { arrayOf(target) }
+    val from = remember { arrayOf(target) }
+    val last = remember { arrayOf(target) }
+    val restart = remember { booleanArrayOf(false) }
+    val progress = remember { Animatable(1f) }
+    // Detect the change during composition so the first frame of a switch is the old
+    // palette, not a one-frame flash of the new one
+    if (last[0] != target) { from[0] = shown[0]; last[0] = target; restart[0] = true }
+    LaunchedEffect(target) {
+        if (!restart[0]) return@LaunchedEffect
+        val ms = if (from[0].isDark != target.isDark) HigMotion.THEME else HigMotion.STATE
+        progress.snapTo(0f)
+        restart[0] = false
+        progress.animateTo(1f, tween(ms, easing = FastOutSlowInEasing))
+    }
+    val p = if (restart[0]) 0f else progress.value
+    shown[0] = if (p >= 1f) target else lerpPalette(from[0], target, p)
+    return shown[0]
+}
+
+private fun lerpPalette(a: HigColors, b: HigColors, t: Float) = HigColors(
+    isDark = b.isDark,
+    bg = lerp(a.bg, b.bg, t), tile = lerp(a.tile, b.tile, t), fill = lerp(a.fill, b.fill, t),
+    fill2 = lerp(a.fill2, b.fill2, t), separator = lerp(a.separator, b.separator, t),
+    label = lerp(a.label, b.label, t), label2 = lerp(a.label2, b.label2, t), label3 = lerp(a.label3, b.label3, t),
+    red = lerp(a.red, b.red, t), green = lerp(a.green, b.green, t), orange = lerp(a.orange, b.orange, t),
+    yellow = lerp(a.yellow, b.yellow, t), tint = lerp(a.tint, b.tint, t), onTint = lerp(a.onTint, b.onTint, t),
+    scrim = lerp(a.scrim, b.scrim, t), sheet = lerp(a.sheet, b.sheet, t), menu = lerp(a.menu, b.menu, t),
+)

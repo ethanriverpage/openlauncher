@@ -1,5 +1,20 @@
 package com.openlauncher.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import com.openlauncher.app.ui.theme.HigMotion
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -168,21 +183,46 @@ fun <T> Segmented(
     modifier: Modifier = Modifier,
 ) {
     val c = Hig.colors
+    val density = LocalDensity.current
+    // Segment bounds in the row, measured after layout; the thumb slides between them
+    val bounds = remember(options.size) { mutableStateListOf<Pair<Float, Float>?>().apply { repeat(options.size) { add(null) } } }
+    val index = options.indexOfFirst { it.first == selected }
+    val thumbX = remember { Animatable(0f) }
+    val thumbW = remember { Animatable(0f) }
+    var placed by remember { mutableStateOf(false) }
+    val target = bounds.getOrNull(index)
+    LaunchedEffect(target) {
+        val (x, w) = target ?: return@LaunchedEffect
+        if (!placed) { thumbX.snapTo(x); thumbW.snapTo(w); placed = true; return@LaunchedEffect }
+        launch { thumbX.animateTo(x, spring(dampingRatio = 0.86f, stiffness = 520f)) }
+        thumbW.animateTo(w, spring(dampingRatio = 0.86f, stiffness = 520f))
+    }
+    val thumb = if (c.isDark) Color(0xFF636366) else Color.White
+    val thumbShadow = Color.Black.copy(alpha = if (c.isDark) 0f else 0.10f)
+    val radius = with(density) { 9.dp.toPx() }
     Row(
         modifier
             .clip(RoundedCornerShape(12.dp))
             .background(c.fill)
-            .padding(3.dp),
+            .padding(3.dp)
+            // Drawn after the padding, so it shares the segments' coordinate space
+            .drawBehind {
+                if (!placed || index < 0) return@drawBehind
+                val r = androidx.compose.ui.geometry.CornerRadius(radius)
+                // A soft 1dp lip stands in for the iOS thumb shadow by day
+                drawRoundRect(thumbShadow, Offset(thumbX.value, 1.dp.toPx()), androidx.compose.ui.geometry.Size(thumbW.value, size.height), r)
+                drawRoundRect(thumb, Offset(thumbX.value, 0f), androidx.compose.ui.geometry.Size(thumbW.value, size.height), r)
+            },
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        options.forEach { (value, label) ->
+        options.forEachIndexed { i, (value, label) ->
             val on = value == selected
+            val fg by animateColorAsState(if (on) c.label else c.label2, HigMotion.feedback(), label = "segment")
             Box(
                 Modifier
                     .heightIn(min = 44.dp)
-                    .then(if (on) Modifier.shadow(2.dp, RoundedCornerShape(9.dp)) else Modifier)
+                    .onPlaced { lc -> bounds[i] = lc.positionInParent().x to lc.size.width.toFloat() }
                     .clip(RoundedCornerShape(9.dp))
-                    .background(if (on) (if (c.isDark) Color(0xFF636366) else Color.White) else Color.Transparent)
                     .clickable(role = Role.Tab) { onSelect(value) }
                     .semantics { stateDescription = if (on) "Selected" else "" }
                     .padding(horizontal = 16.dp),
@@ -191,7 +231,7 @@ fun <T> Segmented(
                 Text(
                     label,
                     style = Hig.type.subhead.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
-                    color = if (on) c.label else c.label2,
+                    color = fg,
                     maxLines = 1
                 )
             }
@@ -371,14 +411,29 @@ fun ContextMenu(
     alignment: Alignment = Alignment.TopEnd,
     header: (@Composable () -> Unit)? = null,
 ) {
-    if (!expanded) return
+    // Stay composed through the exit so the menu can fade out instead of vanishing
+    val visible = remember { MutableTransitionState(false) }
+    visible.targetState = expanded
+    if (!visible.currentState && !visible.targetState) return
     val c = Hig.colors
+    // Grow out of the corner the menu is anchored to, like an iOS context menu
+    val origin = when (alignment) {
+        Alignment.TopStart -> TransformOrigin(0f, 0f)
+        Alignment.BottomStart -> TransformOrigin(0f, 1f)
+        Alignment.BottomEnd -> TransformOrigin(1f, 1f)
+        else -> TransformOrigin(1f, 0f)
+    }
     Popup(
         alignment = alignment,
         offset = offset,
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true)
     ) {
+        AnimatedVisibility(
+            visibleState = visible,
+            enter = scaleIn(HigMotion.pop(), initialScale = 0.86f, transformOrigin = origin) + fadeIn(HigMotion.feedback()),
+            exit = scaleOut(HigMotion.feedback(), targetScale = 0.94f, transformOrigin = origin) + fadeOut(tween(110))
+        ) {
         Column(
             Modifier
                 .width(300.dp)
@@ -409,6 +464,7 @@ fun ContextMenu(
                 }
             }
         }
+    }
     }
 }
 

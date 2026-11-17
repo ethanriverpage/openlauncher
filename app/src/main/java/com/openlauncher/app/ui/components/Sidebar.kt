@@ -341,11 +341,15 @@ private fun NavButton(
     onClick: () -> Unit
 ) {
     val c = Hig.colors
+    // The selection fill crossfades from the old destination to the new one
+    val fill by androidx.compose.animation.animateColorAsState(
+        if (active) c.fill else c.fill.copy(alpha = 0f), com.openlauncher.app.ui.theme.HigMotion.state(), label = "nav"
+    )
     Box(
         Modifier
             .size(width = 64.dp, height = height)
             .clip(RoundedCornerShape(16.dp))
-            .background(if (active) c.fill else Color.Transparent)
+            .background(fill)
             .clickable(onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center

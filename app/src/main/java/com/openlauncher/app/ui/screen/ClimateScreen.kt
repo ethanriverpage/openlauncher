@@ -1,6 +1,17 @@
 package com.openlauncher.app.ui.screen
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import com.openlauncher.app.ui.theme.EaseOutExpo
+import com.openlauncher.app.ui.theme.HigMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -160,7 +171,7 @@ private fun Zone(label: String, temp: String, dim: Boolean, modifier: Modifier, 
             val size = with(LocalDensity.current) { min(maxHeight.toPx() * 0.36f, maxWidth.toPx() * 0.34f).toSp() }
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(label, style = Hig.type.headline, color = c.label2)
-                Text(temp, style = Hig.type.numeral.copy(fontSize = size, lineHeight = size), color = if (dim) c.label3 else c.label, maxLines = 1)
+                RollingNumber(temp, Hig.type.numeral.copy(fontSize = size, lineHeight = size), if (dim) c.label3 else c.label)
                 Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     StepButton(Icons.Rounded.KeyboardArrowDown, "$label cooler", onDown)
                     StepButton(Icons.Rounded.KeyboardArrowUp, "$label warmer", onUp)
@@ -195,10 +206,14 @@ private fun FanTile(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    for (i in 1..7) Box(
-                        Modifier.weight(1f).fillMaxHeight(0.3f + 0.7f * i / 7f).clip(RoundedCornerShape(6.dp))
-                            .background(if (i <= level && !dim) c.tint else c.fill)
-                    )
+                    for (i in 1..7) {
+                        // Bars fill and empty in sequence as the level steps
+                        val bar by animateColorAsState(
+                            if (i <= level && !dim) c.tint else c.fill,
+                            tween(HigMotion.STATE, delayMillis = 18 * i, easing = EaseOutExpo), label = "fanbar"
+                        )
+                        Box(Modifier.weight(1f).fillMaxHeight(0.3f + 0.7f * i / 7f).clip(RoundedCornerShape(6.dp)).background(bar))
+                    }
                 }
                 StepButton(Icons.Rounded.Add, "Fan higher", onUp)
             }
@@ -255,11 +270,12 @@ private fun airflowName(mode: Int?): String = when (mode) {
 @Composable
 private fun ToggleTile(t: Toggle, modifier: Modifier, onClick: () -> Unit) {
     val c = Hig.colors
-    val fg = if (t.on) c.onToggleOn else c.label2
+    val fg by animateColorAsState(if (t.on) c.onToggleOn else c.label2, HigMotion.state(), label = "toggleFg")
+    val bg by animateColorAsState(if (t.on) c.toggleOn else c.tile, HigMotion.state(), label = "toggleBg")
     Column(
         modifier
             .clip(RoundedCornerShape(22.dp))
-            .background(if (t.on) c.toggleOn else c.tile)
+            .background(bg)
             .pressable(onClick = onClick)
             .semantics { stateDescription = if (t.on) "On" else "Off" },
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -275,6 +291,27 @@ private fun ToggleTile(t: Toggle, modifier: Modifier, onClick: () -> Unit) {
         }
         Text(t.label, style = Hig.type.footnote.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = fg, maxLines = 1, textAlign = TextAlign.Center)
     }
+}
+
+/**
+ * A temperature that rolls in the direction it moved, as iOS numeric text does: warmer
+ * rises in from below, cooler drops in from above. LO/HI and "--" simply cross-fade.
+ */
+@Composable
+private fun RollingNumber(text: String, style: androidx.compose.ui.text.TextStyle, color: androidx.compose.ui.graphics.Color) {
+    AnimatedContent(
+        targetState = text,
+        transitionSpec = {
+            val from = initialState.removeSuffix("°").toFloatOrNull()
+            val to = targetState.removeSuffix("°").toFloatOrNull()
+            val dir = if (from == null || to == null) 0 else if (to > from) 1 else -1
+            if (dir == 0) fadeIn(HigMotion.state()) togetherWith fadeOut(HigMotion.feedback())
+            else (slideInVertically(HigMotion.state()) { h -> dir * h / 3 } + fadeIn(HigMotion.state())) togetherWith
+                 (slideOutVertically(HigMotion.feedback()) { h -> -dir * h / 3 } + fadeOut(HigMotion.feedback())) using
+                 SizeTransform(clip = false)
+        },
+        label = "temp"
+    ) { t -> Text(t, style = style, color = color, maxLines = 1) }
 }
 
 internal fun tempLabel(t: Float?, lo: Boolean, hi: Boolean, unit: String?): String = when {
