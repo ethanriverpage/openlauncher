@@ -141,8 +141,6 @@ class HeadlightSource(private val context: Context, scope: CoroutineScope) {
         }
     }
 
-    init { bind() }
-
     private fun report(h: Headlight, from: String) {
         if (_raw.value != h) Log.i(TAG, "Headlight ${_raw.value} -> $h ($from)")
         _raw.value = h
@@ -199,4 +197,7 @@ class HeadlightSource(private val context: Context, scope: CoroutineScope) {
         teardown()
         Log.i(TAG, "Released")
     }
+
+    // Last in the class: bind() reads properties declared above, which must be initialised first
+    init { bind() }
 }
