@@ -145,7 +145,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .wx .cond{font-size:calc(min(9.5cqh,7cqw,22px)*var(--ts));font-weight:600;margin-top:6px}
 .wx .hl{font-size:calc(min(8.5cqh,6.4cqw,20px)*var(--ts));color:var(--label2);margin-top:2px}
 .offline{margin:auto;text-align:center;color:var(--label2);display:flex;flex-direction:column;align-items:center;gap:10px}
-.offline .ms{font-size:44px;color:var(--label3)}
+.offline .ms{font-size:56px;color:var(--label3)}
 .cmp{align-items:center;justify-content:center;gap:2.5cqh}
 .cmp svg{width:min(78cqw,52cqh);height:auto}
 .cmp .hdg{font-size:calc(min(9cqh,17cqw)*var(--ts));font-weight:650;letter-spacing:-.02em}
@@ -170,6 +170,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 @container (max-width:380px){ .np{flex-direction:column;align-items:stretch} .np .ctl{justify-content:space-between} }
 .idle{margin:auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px}
 .idle .row{display:flex;gap:10px}
+/* Phone projection: the whole tile opens it — the name, and an arrow saying it leaves the launcher */
+.w.proj{width:100%;height:100%;text-align:left;justify-content:flex-end;cursor:pointer;transition:transform .15s var(--ease-out,ease-out)}
+.w.proj:active{transform:scale(.97)}
+.w.proj .ms{position:absolute;top:clamp(16px,7cqmin,28px);right:clamp(16px,7cqmin,28px);font-size:clamp(28px,12cqh,40px);color:var(--label2)}
+.w.proj .name{font-size:calc(min(20cqh,11cqw,64px)*var(--ts));line-height:1;font-weight:700;letter-spacing:-.015em;font-family:Inter;font-optical-sizing:auto}
 .big1{font-size:calc(min(38cqh,26cqw)*var(--ts));font-weight:650;letter-spacing:-.035em;line-height:1;margin-top:auto}
 .unit{font-size:calc(min(10cqh,7cqw,24px)*var(--ts));color:var(--label2);font-weight:500;margin-top:6px}
 .stat{display:flex;flex-direction:column;gap:14px;margin-top:auto}
@@ -462,12 +467,12 @@ function analogSVG(){
 const W = {
   CLOCK:()=> S.clockStyle==='analog' ? `<div class="w clock">${analogSVG()}</div>` :
     `<div class="w clock"><span class="wtitle">${ms('directions_car',1)}${S.vehicle}</span><div class="num">7:42</div><div class="date">Sunday, November 16</div></div>`,
-  WEATHER:()=> !S.online ? `<div class="w"><div class="offline">${ms('cloud_off')}<span class="t-sub">Weather needs a connection</span></div></div>` :
+  WEATHER:()=> !S.online ? `<div class="w"><div class="offline" role="img" aria-label="Weather unavailable offline">${ms('cloud_off')}</div></div>` :
     `<div class="w wx"><div class="top"><span class="wtitle">${ms('near_me',1)}My Location</span><span class="ms f sym" style="color:var(--label)" aria-hidden="true">bedtime</span></div>
      <div class="temp">${S.units==='imperial'?'52°':'11°'}</div><div class="cond">Clear</div><div class="hl">H:${S.units==='imperial'?'61° L:44°':'16° L:7°'}</div></div>`,
   TELEMETRY:()=>`<div class="w cmp">${compassSVG()}<div class="hdg">312° NW</div><div class="spd">${S.units==='imperial'?'42 mph':'68 km/h'}</div></div>`,
   NOW_PLAYING:()=>{
-    if(S.media==='carplay') return `<div class="w"><div class="idle">${icon('CarPlay')}<div class="t-title2">CarPlay is connected</div><div class="t-sub">Media and navigation are on your phone</div><button class="pill primary" data-a="launch" data-v="CarPlay">Open CarPlay</button></div></div>`;
+    if(S.media==='carplay') return `<button class="w proj" data-a="launch" data-v="CarPlay" aria-label="Open CarPlay">${ms('north_east')}<span class="name">CarPlay</span></button>`;
     if(S.media==='idle') return `<div class="w"><div class="idle"><div class="t-title2">Not Playing</div><div class="row" style="display:flex;gap:10px"><button class="pill" data-a="launch" data-v="Spotify">${ms('graphic_eq')}Spotify</button><button class="pill" data-a="launch" data-v="Radio">${ms('radio')}Radio</button></div></div></div>`;
     return `<div class="w np" style="--art:linear-gradient(145deg,#2f4a63 0%,#7c5c8a 55%,#d08a5a 100%);--np-tint:var(--np-bg)">
       <div class="art" role="img" aria-label="Album artwork"></div>
@@ -534,14 +539,13 @@ function climate(){
   if(c.rearOpen){ const r=c.rear;
     return `<section class="screen clim" aria-label="Rear climate">
      <div class="zone"><span class="lbl">Rear</span><span class="tmp" data-k="rear" aria-label="${fmtT(r.temp)}">${digits(fmtT(r.temp))}</span><div class="stp"><button class="stepb" aria-label="Rear cooler" data-a="rtemp" data-v="-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Rear warmer" data-a="rtemp" data-v="1">${ms('keyboard_arrow_up')}</button></div></div>
-     <div class="fanzone"><div class="fanrow"><button class="stepb" aria-label="Rear fan lower" data-a="rfan" data-v="-1">${ms('remove')}</button><div class="segs" data-k="rear">${[...Array(7)].map((_,i)=>`<i class="${i<r.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Rear fan higher" data-a="rfan" data-v="1">${ms('add')}</button></div>
-       <div class="t-foot" style="text-align:center">Rear fan ${r.fan} of 7</div></div>
+     <div class="fanzone"><div class="fanrow"><button class="stepb" aria-label="Rear fan lower" data-a="rfan" data-v="-1">${ms('remove')}</button><div class="segs" data-k="rear" role="img" aria-label="Rear fan ${r.fan} of 7">${[...Array(7)].map((_,i)=>`<i class="${i<r.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Rear fan higher" data-a="rfan" data-v="1">${ms('add')}</button></div></div>
      <div class="zone" style="justify-content:center;gap:14px"><button class="pill" data-a="rearback">${ms('chevron_left')}Front</button></div>
      <div class="toggles"><button class="tg" aria-pressed="${r.auto}" data-a="rtog" data-v="auto">${ms('hdr_auto')}Rear Auto</button><button class="tg" aria-pressed="${r.on}" data-a="rtog" data-v="on">${ms('power_settings_new')}${r.on?'Rear On':'Rear Off'}</button></div></section>`; }
   const tg=(k,label,ic,ab)=>`<button class="tg" aria-pressed="${k==='off'?off:!!c[k]}" data-a="ctog" data-v="${k}">${ab?`<span class="ab" aria-label="${label}">${ab}</span>`:ms(ic)+label}</button>`;
   return `<section class="screen clim ${off?'off':''}" aria-label="Climate">
    <div class="zone"><span class="lbl">Driver</span><span class="tmp" data-k="left" aria-label="${fmtT(c.left)}">${digits(fmtT(c.left))}</span><div class="stp"><button class="stepb" aria-label="Driver cooler" data-a="temp" data-v="left,-1" ${c.left<=60?'disabled':''}>${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Driver warmer" data-a="temp" data-v="left,1" ${c.left>=85?'disabled':''}>${ms('keyboard_arrow_up')}</button></div></div>
-   <div class="fanzone"><span class="lbl" style="text-align:center;font-size:calc(17px*var(--ts));color:var(--label2);font-weight:600">${off?'Off':'Fan '+c.fan}</span><div class="fanrow"><button class="stepb" aria-label="Fan lower" data-a="fan" data-v="-1">${ms('remove')}</button><div class="segs" data-k="front" aria-label="Fan ${c.fan} of 7">${[...Array(7)].map((_,i)=>`<i class="${i<c.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Fan higher" data-a="fan" data-v="1">${ms('add')}</button></div>
+   <div class="fanzone"><div class="fanrow"><button class="stepb" aria-label="Fan lower" data-a="fan" data-v="-1">${ms('remove')}</button><div class="segs" data-k="front" role="img" aria-label="Fan ${off?'off':c.fan+' of 7'}">${[...Array(7)].map((_,i)=>`<i class="${i<c.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Fan higher" data-a="fan" data-v="1">${ms('add')}</button></div>
      <div class="airrow" role="group" aria-label="Airflow">${[['face','airline_seat_recline_normal'],['face_floor','airline_seat_recline_extra'],['floor','airline_seat_legroom_normal'],['floor_def','windshield_defrost_front']].map(([k,i])=>`<button aria-label="Airflow ${k.replace('_',' and ')}" aria-pressed="${c.air===k}" data-a="air" data-v="${k}">${ms(i)}</button>`).join('')}</div></div>
    <div class="zone"><span class="lbl">Passenger${c.dual?'':' · Synced'}</span><span class="tmp" data-k="right" aria-label="${fmtT(c.dual?c.right:c.left)}">${digits(fmtT(c.dual?c.right:c.left))}</span><div class="stp"><button class="stepb" aria-label="Passenger cooler" data-a="temp" data-v="right,-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Passenger warmer" data-a="temp" data-v="right,1">${ms('keyboard_arrow_up')}</button></div></div>
    <div class="toggles">${tg('off','Off','power_settings_new')}${tg('auto','Auto','hdr_auto')}${tg('ac','A/C','ac_unit')}${tg('recirc','Recirculate','autorenew')}${tg('fdef','Front Defrost','windshield_defrost_front')}${tg('rdef','Rear Defrost','windshield_defrost_rear')}${tg('dual','Dual','group')}

@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,21 +84,42 @@ fun NowPlayingWidget(
             onPlayPause, onNext, onPrev, onLaunchCarPlay, onLaunchAndroidAuto, onTapToOpenApp, Modifier.fillMaxSize()
         )
 
-        // Source switch (media session ↔ tuner)
-        Box(Modifier.align(Alignment.TopEnd).padding(12.dp)) {
+        // Source switch (media session ↔ tuner). On the projection launcher the arrow owns the
+        // top-right corner, so the switch moves to the bottom-right.
+        val projection = source == Source.MEDIA && (state == null || state.title.isEmpty()) &&
+            (carPlayPackage.isNotEmpty() || androidAutoPackage.isNotEmpty())
+        Box(Modifier.align(if (projection) Alignment.BottomEnd else Alignment.TopEnd).padding(12.dp)) {
             CircleIconButton(
                 Icons.Rounded.MoreHoriz, "Choose source", onClick = { menu = true },
                 size = 44.dp, iconSize = 28.dp, tint = Hig.colors.label2, background = Hig.colors.fill.copy(alpha = 0.6f)
             )
             ContextMenu(
                 expanded = menu, onDismiss = { menu = false },
-                alignment = Alignment.TopEnd, offset = IntOffset(0, 120),
+                alignment = if (projection) Alignment.BottomEnd else Alignment.TopEnd,
+                offset = IntOffset(0, if (projection) -120 else 120),
                 actions = listOf(
                     MenuAction("Media", Icons.Rounded.MusicNote, checked = source == Source.MEDIA) { source = Source.MEDIA },
                     MenuAction("Radio", Icons.Rounded.Radio, checked = source == Source.RADIO) { source = Source.RADIO },
                 )
             )
         }
+    }
+}
+
+/** A tile-sized launch target: the app's name, and an arrow saying it opens elsewhere. */
+@Composable
+private fun ProjectionPanel(name: String, onClick: () -> Unit, modifier: Modifier) {
+    val c = Hig.colors
+    BoxWithConstraints(
+        modifier.fillMaxHeight()
+            .pressable(onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = "Open $name" }
+            .padding(24.dp)
+    ) {
+        // The name is the whole message, so it is sized to the tile like the clock's numerals
+        val size = with(androidx.compose.ui.platform.LocalDensity.current) { minOf(maxHeight.toPx() * 0.24f, maxWidth.toPx() * 0.12f, 64.dp.toPx()).toSp() }
+        Icon(Icons.Rounded.NorthEast, null, tint = c.label2, modifier = Modifier.align(Alignment.TopEnd).size(minOf(maxHeight * 0.16f, 40.dp).coerceAtLeast(28.dp)))
+        Text(name, style = Hig.type.title1.copy(fontSize = size, lineHeight = size), color = c.label, maxLines = 1, modifier = Modifier.align(Alignment.BottomStart))
     }
 }
 
@@ -117,6 +140,16 @@ private fun MediaPlayer(
     val c = Hig.colors
     val connected by MediaListenerService.isConnected.collectAsState()
 
+    if ((state == null || state.title.isEmpty()) && (hasCarPlay || hasAuto)) {
+        // Phone projection: the whole tile is the button. Both configured → two halves.
+        Row(modifier.fillMaxSize()) {
+            if (hasCarPlay) ProjectionPanel("CarPlay", onLaunchCarPlay, Modifier.weight(1f))
+            if (hasCarPlay && hasAuto) Box(Modifier.width(0.5.dp).fillMaxHeight().padding(vertical = 20.dp).background(c.separator))
+            if (hasAuto) ProjectionPanel("Android Auto", onLaunchAndroidAuto, Modifier.weight(1f))
+        }
+        return
+    }
+
     if (state == null || state.title.isEmpty()) {
         // Caption top-left like every other widget; the source button owns the top-right corner
         Box(modifier.padding(24.dp)) {
@@ -126,13 +159,6 @@ private fun MediaPlayer(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 when {
-                    hasCarPlay || hasAuto -> {
-                        Text("Nothing playing", style = Hig.type.headline, color = c.label2, maxLines = 1)
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (hasCarPlay) PillButton("CarPlay", onLaunchCarPlay, icon = Icons.Rounded.PhoneIphone, primary = true)
-                            if (hasAuto) PillButton("Android Auto", onLaunchAndroidAuto, icon = Icons.Rounded.DirectionsCar, primary = !hasCarPlay)
-                        }
-                    }
                     !connected -> {
                         Text("Not Playing", style = Hig.type.title2, color = c.label, maxLines = 1)
                         Text("Allow notification access in Settings to show media here.", style = Hig.type.subhead, color = c.label2, maxLines = 2)

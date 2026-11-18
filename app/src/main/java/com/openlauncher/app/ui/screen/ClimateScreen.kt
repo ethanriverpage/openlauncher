@@ -90,7 +90,7 @@ fun ClimatePanel(modifier: Modifier = Modifier, onInteract: () -> Unit = {}) {
                 onDown = { send(Cmd.LEFT_TEMP_DOWN) }, onUp = { send(Cmd.LEFT_TEMP_UP) }
             )
             FanTile(
-                label = if (off) "Off" else "Fan ${s.fan ?: 0}", level = s.fan ?: 0, dim = off,
+                label = "Fan", level = s.fan ?: 0, dim = off,
                 modifier = Modifier.weight(1.25f).fillMaxHeight(),
                 onDown = { send(Cmd.FAN_DOWN) }, onUp = { send(Cmd.FAN_UP) }
             ) {
@@ -143,7 +143,7 @@ private fun RearPanel(s: ClimateState, modifier: Modifier, onInteract: () -> Uni
                 onUp = { key { TwMcu.step(TwMcu.KEY_REAR_TEMP_UP) } }
             )
             FanTile(
-                label = if (rearOn) "Rear fan ${s.rearFan}" else "Rear off", level = s.rearFan ?: 0, dim = !rearOn,
+                label = "Rear fan", level = s.rearFan ?: 0, dim = !rearOn,
                 modifier = Modifier.weight(1.25f).fillMaxHeight(),
                 onDown = { key { TwMcu.step(TwMcu.KEY_REAR_FAN_DOWN) } },
                 onUp = { key { TwMcu.step(TwMcu.KEY_REAR_FAN_UP) } }
@@ -198,11 +198,11 @@ private fun FanTile(
             verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(label, style = Hig.type.headline, color = c.label2)
+            // The bars are the reading; the level is spoken, not printed
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                StepButton(Icons.Rounded.Remove, "Fan lower", onDown)
+                StepButton(Icons.Rounded.Remove, "$label lower", onDown)
                 Row(
-                    Modifier.weight(1f).height(56.dp).semantics { stateDescription = "Fan $level of 7" },
+                    Modifier.weight(1f).height(56.dp).semantics { contentDescription = label; stateDescription = if (dim) "Off" else "$level of 7" },
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
@@ -220,7 +220,7 @@ private fun FanTile(
                         Box(Modifier.weight(1f).fillMaxHeight(0.3f + 0.7f * i / 7f).clip(RoundedCornerShape(6.dp)).background(bar))
                     }
                 }
-                StepButton(Icons.Rounded.Add, "Fan higher", onUp)
+                StepButton(Icons.Rounded.Add, "$label higher", onUp)
             }
             extra?.invoke(this)
         }

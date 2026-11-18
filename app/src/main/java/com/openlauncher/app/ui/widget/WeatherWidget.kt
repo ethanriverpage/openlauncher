@@ -37,12 +37,16 @@ fun WeatherWidget(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(if (isOnline) Icons.Rounded.LocationSearching else Icons.Rounded.CloudOff, null, tint = c.label3, modifier = Modifier.size(44.dp))
-            Spacer(Modifier.height(10.dp))
-            Text(
-                if (isOnline) "Waiting for location" else "Weather needs a connection",
-                style = Hig.type.callout, color = c.label2, textAlign = TextAlign.Center
+            // Offline is just the glyph; waiting on a GPS fix still says so
+            Icon(
+                if (isOnline) Icons.Rounded.LocationSearching else Icons.Rounded.CloudOff,
+                if (isOnline) null else "Weather unavailable offline",
+                tint = c.label3, modifier = Modifier.size(if (isOnline) 44.dp else 56.dp)
             )
+            if (isOnline) {
+                Spacer(Modifier.height(10.dp))
+                Text("Waiting for location", style = Hig.type.callout, color = c.label2, textAlign = TextAlign.Center)
+            }
         }
         return
     }
