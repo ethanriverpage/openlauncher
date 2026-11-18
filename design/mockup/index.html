@@ -635,10 +635,12 @@ function animateFrom(snap){
     const a=snap.tiles[t.dataset.id]; if(!a) return;
     const b=t.getBoundingClientRect();
     if(Math.abs(a.left-b.left)<1 && Math.abs(a.top-b.top)<1 && Math.abs(a.width-b.width)<1 && Math.abs(a.height-b.height)<1) return;
-    const sEnd=S.editing?.97:1, lw=t.offsetWidth, lh=t.offsetHeight;
-    const dx=((a.left+a.width/2)-(b.left+b.width/2))/s, dy=((a.top+a.height/2)-(b.top+b.height/2))/s;
+    // Start exactly where the tile rested: scale from the measured rects, not rounded layout sizes
+    const sEnd=S.editing?.97:1, k=b.width/sEnd/t.offsetWidth;
+    const dx=((a.left+a.width/2)-(b.left+b.width/2))/k, dy=((a.top+a.height/2)-(b.top+b.height/2))/k;
     t.style.zIndex=4;
-    const an=anim(t,[{transform:`translate(${dx}px,${dy}px) scale(${a.width/s/lw},${a.height/s/lh})`},{transform:`scale(${sEnd})`}],{duration:420,easing:SETTLE});
+    const leaving=snap.editing&&!S.editing;   // exits run faster than entrances
+    const an=anim(t,[{transform:`translate(${dx}px,${dy}px) scale(${sEnd*a.width/b.width},${sEnd*a.height/b.height})`},{transform:`scale(${sEnd})`}],{duration:leaving?260:420,easing:SETTLE});
     an&&an.finished.then(()=>t.style.zIndex='').catch(()=>{});
   });
   // 3. Colours fade from their old values: nav selection (and its icon fill), toggles, fan bars.
@@ -681,7 +683,8 @@ function animateFrom(snap){
       g?g.finished.then(()=>ghost.remove()).catch(()=>ghost.remove()):ghost.remove(); });
   });
   // 6. A closed menu fades out instead of vanishing
-  if(snap.menu && !hu.querySelector('.menu')){ const m=snap.menu; m.classList.add('leaving'); hu.appendChild(m); setTimeout(()=>m.remove(),160/rate()); }
+  if(snap.menu && !hu.querySelector('.menu')){ const m=snap.menu; m.classList.add('leaving'); hu.appendChild(m);
+    const a=m.getAnimations()[0]; a?a.finished.then(()=>m.remove()).catch(()=>m.remove()):m.remove(); }
 }
 const THEME_VARS=['--bg','--tile','--fill','--fill2','--sep','--label','--label2','--label3','--red','--green','--yellow','--orange','--scrim','--sheet','--menu','--tint','--on-tint','--np-bg'];
 const TEXT_VARS=new Set(['--label','--label2','--label3','--on-tint']);
@@ -691,7 +694,7 @@ const mix=(a,b,t)=>a.map((x,i)=>x+(b[i]-x)*t);
 const css=c=>`rgba(${c[0].toFixed(1)},${c[1].toFixed(1)},${c[2].toFixed(1)},${c[3].toFixed(3)})`;
 const lum=c=>{ const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}; return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2]); };
 const bez=(x1,y1,x2,y2)=>t=>{ let a=t; for(let i=0;i<8;i++){ const x=3*x1*a*(1-a)**2+3*x2*a*a*(1-a)+a**3-t, dx=3*x1*(1-a)**2+6*(x2-x1)*a*(1-a)+3*(1-x2)*a*a; if(Math.abs(dx)<1e-6) break; a-=x/dx; } return 3*y1*a*(1-a)**2+3*y2*a*a*(1-a)+a**3; };
-const fastOutSlowIn=bez(.4,0,.2,1);
+const fastOutSlowIn=bez(.7,0,.3,1);   // steep through mid-grey so it lasts ~80ms
 const readVars=()=>{ const cs=getComputedStyle(hu); return Object.fromEntries(THEME_VARS.map(v=>[v,rgba(cs.getPropertyValue(v).trim()||'#000')])); };
 // Registered as <color> so the tokens themselves can be animated (and measured) as Web Animations
 try{ THEME_VARS.forEach(v=>CSS.registerProperty({name:v,syntax:'<color>',inherits:true,initialValue:'transparent'})); }catch(e){}
@@ -708,8 +711,17 @@ function themeFade(fromVals,oldMode){
   const kf=(vars,vals)=>Object.fromEntries(vars.map(v=>[v,css(vals[v])]));
   const dur=700/rate();
   themeAnims=[
-    hu.animate([kf(surf,fromVals),kf(surf,toVals)],{duration:dur,easing:'cubic-bezier(.4,0,.2,1)'}),
-    hu.animate([{offset:0,...kf(text,fromVals)},{offset:Math.max(0,rtc-.05),...kf(text,fromVals)},{offset:Math.min(1,rtc+.05),...kf(text,toVals)},{offset:1,...kf(text,toVals)}],{duration:dur})
+    hu.animate([kf(surf,fromVals),kf(surf,toVals)],{duration:dur,easing:'cubic-bezier(.7,0,.3,1)'}),
+    // Text switches in one step at the crossover (a fade would pass through the surface's own grey);
+    // around it, secondary labels borrow the primary label's strength so they never wash out
+    hu.animate([
+      {offset:0,...kf(text,fromVals)},
+      {offset:Math.max(0,rtc-.18),...kf(text,fromVals)},
+      {offset:Math.max(0,rtc-.12),...kf(text,{...fromVals,'--label2':fromVals['--label'],'--label3':fromVals['--label']}),easing:'step-end'},
+      {offset:rtc,...kf(text,{...toVals,'--label2':toVals['--label'],'--label3':toVals['--label']})},
+      {offset:Math.min(1,rtc+.12),...kf(text,{...toVals,'--label2':toVals['--label'],'--label3':toVals['--label']})},
+      {offset:Math.min(1,rtc+.2),...kf(text,toVals)},
+      {offset:1,...kf(text,toVals)}],{duration:dur})
   ];
   hu.dataset.mode=oldMode; hu.dataset.theming=''; themeT=setTimeout(()=>{ hu.dataset.mode=newMode; },dur*rtc);
   Promise.all(themeAnims.map(a=>a.finished)).then(()=>delete hu.dataset.theming).catch(()=>{});

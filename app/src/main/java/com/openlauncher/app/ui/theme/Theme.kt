@@ -1,6 +1,7 @@
 package com.openlauncher.app.ui.theme
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
@@ -160,7 +161,8 @@ private fun animatedPalette(target: HigColors): HigColors {
         val ms = if (from[0].isDark != target.isDark) HigMotion.THEME else HigMotion.STATE
         progress.snapTo(0f)
         restart[0] = false
-        progress.animateTo(1f, tween(ms, easing = FastOutSlowInEasing))
+        // Steep through mid-luminance so the grey middle of a day/night fade is brief
+        progress.animateTo(1f, tween(ms, easing = if (crossover[0] >= 0f) CubicBezierEasing(0.7f, 0f, 0.3f, 1f) else FastOutSlowInEasing))
     }
     val p = if (restart[0]) 0f else progress.value
     shown[0] = if (p >= 1f) target else lerpPalette(from[0], target, p, crossover[0])
@@ -184,15 +186,20 @@ private fun crossoverPoint(a: HigColors, b: HigColors): Float {
 }
 
 private fun lerpPalette(a: HigColors, b: HigColors, t: Float, crossover: Float): HigColors {
-    // Text crosses over in a short window (~70ms of 700) around the crossover point
-    val tt = if (crossover < 0f) t else ((t - crossover) / 0.1f + 0.5f).coerceIn(0f, 1f)
-    return HigColors(
-        isDark = if (tt >= 0.5f) b.isDark else a.isDark,
-        bg = lerp(a.bg, b.bg, t), tile = lerp(a.tile, b.tile, t), fill = lerp(a.fill, b.fill, t),
-        fill2 = lerp(a.fill2, b.fill2, t), separator = lerp(a.separator, b.separator, t),
-        label = lerp(a.label, b.label, tt), label2 = lerp(a.label2, b.label2, tt), label3 = lerp(a.label3, b.label3, tt),
-        red = lerp(a.red, b.red, t), green = lerp(a.green, b.green, t), orange = lerp(a.orange, b.orange, t),
-        yellow = lerp(a.yellow, b.yellow, t), tint = lerp(a.tint, b.tint, t), onTint = lerp(a.onTint, b.onTint, tt),
-        scrim = lerp(a.scrim, b.scrim, t), sheet = lerp(a.sheet, b.sheet, t), menu = lerp(a.menu, b.menu, t),
-    )
+    if (crossover < 0f) return blend(a, b, t, t)
+    // Text switches in one step at the crossover (a fade would pass through the surface's own
+    // grey). Around it, secondary labels borrow the primary label so they never wash out.
+    val side = if (t >= crossover) b else a
+    val p = blend(a, b, t, if (t >= crossover) 1f else 0f)
+    return if (kotlin.math.abs(t - crossover) < 0.15f) p.copy(label2 = side.label, label3 = side.label) else p
 }
+
+private fun blend(a: HigColors, b: HigColors, t: Float, tt: Float) = HigColors(
+    isDark = if (tt >= 0.5f) b.isDark else a.isDark,
+    bg = lerp(a.bg, b.bg, t), tile = lerp(a.tile, b.tile, t), fill = lerp(a.fill, b.fill, t),
+    fill2 = lerp(a.fill2, b.fill2, t), separator = lerp(a.separator, b.separator, t),
+    label = lerp(a.label, b.label, tt), label2 = lerp(a.label2, b.label2, tt), label3 = lerp(a.label3, b.label3, tt),
+    red = lerp(a.red, b.red, t), green = lerp(a.green, b.green, t), orange = lerp(a.orange, b.orange, t),
+    yellow = lerp(a.yellow, b.yellow, t), tint = lerp(a.tint, b.tint, t), onTint = lerp(a.onTint, b.onTint, tt),
+    scrim = lerp(a.scrim, b.scrim, t), sheet = lerp(a.sheet, b.sheet, t), menu = lerp(a.menu, b.menu, t),
+)

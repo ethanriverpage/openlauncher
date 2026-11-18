@@ -324,11 +324,13 @@ Every interactive element dips to 94% scale under the finger (spring, stiffness 
 
 Motion tokens live in `ui/theme/Motion.kt` (`HigMotion`): feedback 150ms, state 240ms, both on an expo ease-out (0.16, 1, 0.3, 1); `pop` (spring, damping 0.62, stiffness 650) for things that appear; `settle` (no-bounce spring, stiffness 420) for things that move on the grid.
 
-- **Theme Dissolve.** Day/night changes cross-fade every palette token over 700ms; accent and wallpaper changes over 240ms. Sunset never flashes a light screen into a dark cabin.
+- **Theme Dissolve.** Day/night changes fade every surface token over 700ms on a steep curve (0.7, 0, 0.3, 1) so the grey middle is brief; accent and wallpaper changes over 240ms. Sunset never flashes a light screen into a dark cabin.
+- **Text Never Fades Through Grey.** During a day/night fade, text tokens switch in one step where the tile crosses mid-luminance (0.18), and secondary labels borrow the primary label's strength around that point. Measured on the mockup: numerals stay at or above 6.3:1 and secondary text at or above its resting contrast for the whole fade. Per-element colour animations snap while the palette fades (`themeAware`), so nothing trails the surface it sits on.
 - **Glide, Don't Jump.** Widgets move to a new cell (drop, displacement, resize) on the settle spring, starting from where the finger released them.
+- **Edit Mode In Two Beats.** The edit bar opens and the grid settles, then badges pop 140ms later. The grid glides down to make room for the bar; that is accepted (decided 2026-11-17) because reserving the bar's 76dp permanently would cost 16% of a 480dp driving surface, and edit mode only happens parked. Leaving edit mode is faster than entering (260ms vs 420ms).
 - **Edit Jiggle Is Parked-Only.** The one repeating motion: a 0.35° tile wobble, phase-shifted per tile, only in widget edit mode, and off entirely when system animations are off. Nothing loops on the driving surface.
-- **Selection Slides.** Segmented thumbs slide between segments; the sidebar's selected fill cross-fades between destinations.
-- **Numbers Roll.** Climate temperatures roll in the direction they moved (warmer from below, cooler from above); fan bars fill in sequence.
+- **Selection Slides.** Segmented thumbs slide between segments on the 240ms state token with no overshoot, labels brightening as the thumb arrives; the sidebar's selected fill and its outline/filled glyph cross-fade together.
+- **Numbers Roll Like An Odometer.** Only the digits that change move, each clipped to its own line, old and new one line apart on the same 300ms curve: warmer rises from below, cooler drops from above. Shape changes (LO, HI) cross-fade. Fan bars fill in sequence counted from the first bar that changes.
 - **Menus Grow From Their Anchor.** Context menus pop from the corner they are anchored to and fade out in 110ms.
 - **Remove Animations Is Honoured.** Compose scales every tween and spring by the system animator scale; `rememberReduceMotion()` gates the jiggle.
 
