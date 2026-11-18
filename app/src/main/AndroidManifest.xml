@@ -11,6 +11,8 @@
 
     <!-- Broadcast permission for MCU head unit event service -->
     <uses-permission android:name="com.szchoiceway.permission.broadcast" />
+    <!-- Headlight (and later speed/RPM) state from the head unit's car info service -->
+    <uses-permission android:name="com.tw.carinfoservice.permission.USE_AIDL" />
 
     <!-- GPS for telemetry and weather location -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -40,6 +42,8 @@
         </intent>
         <!-- TW head unit A/C service (ClimateWidget binds com.tw.ac.AirService) -->
         <package android:name="com.tw.ac" />
+        <!-- TW car info service (HeadlightSource binds com.tw.carinfoservice) -->
+        <package android:name="com.tw.carinfoservice" />
     </queries>
 
     <application

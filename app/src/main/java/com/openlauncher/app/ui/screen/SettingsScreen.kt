@@ -147,10 +147,10 @@ private fun Appearance(settings: AppSettings, onUpdate: (AppSettings.() -> AppSe
         }
     }
 
-    GroupedSection("Display", footer = "Sunset switches at local sunrise and sunset, calculated offline.", rows = listOf {
+    GroupedSection("Display", footer = "Auto follows the headlights when the car reports them, otherwise local sunrise and sunset. Headlights follows only the light switch.", rows = listOf {
         ListRow("Mode") {
             Segmented(
-                listOf(DayNightMode.DARK to "Night", DayNightMode.LIGHT to "Day", DayNightMode.AUTO to "Sunset", DayNightMode.SYSTEM to "System"),
+                listOf(DayNightMode.DARK to "Night", DayNightMode.LIGHT to "Day", DayNightMode.AUTO to "Auto", DayNightMode.HEADLIGHTS to "Headlights", DayNightMode.SYSTEM to "System"),
                 settings.dayNightMode, { m -> onUpdate { copy(dayNightMode = m) } }
             )
         }

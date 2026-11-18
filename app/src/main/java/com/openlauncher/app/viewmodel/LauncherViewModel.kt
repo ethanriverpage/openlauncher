@@ -14,6 +14,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.openlauncher.app.data.AppSettings
 import com.openlauncher.app.data.DayNightMode
+import com.openlauncher.app.vehicle.Headlight
+import com.openlauncher.app.vehicle.HeadlightSource
 import com.openlauncher.app.data.DefaultShortcutIcon
 import com.openlauncher.app.data.GRID_COLS
 import com.openlauncher.app.data.GRID_ROWS
@@ -419,12 +421,24 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // (minDistance filters), so AUTO mode must also flip on time alone.
     private val minuteTicker = flow { while (true) { emit(Unit); delay(60_000L) } }
 
-    val isDayMode: StateFlow<Boolean> = combine(settings, locationMgr.location, minuteTicker) { s, loc, _ ->
+    // ── Vehicle signals (com.tw.carinfoservice) ───────────────────────────────
+    /** Owned here so later features (speed, RPM) can reuse the same binding. */
+    val headlights = HeadlightSource(application, viewModelScope)
+
+    val isDayMode: StateFlow<Boolean> = combine(settings, locationMgr.location, minuteTicker, headlights.state) { s, loc, _, lights ->
+        // The theme change itself uses the palette fade in OpenLauncherTheme (same as sunset)
+        val sun = { loc?.let { SunriseSunset.isDay(it.latitude, it.longitude) } }
         when (s.dayNightMode) {
-            DayNightMode.DARK   -> false
-            DayNightMode.LIGHT  -> true
-            DayNightMode.AUTO   -> if (loc != null) SunriseSunset.isDay(loc.latitude, loc.longitude) else false
-            DayNightMode.SYSTEM -> false // placeholder — overridden in MainActivity via isSystemInDarkTheme()
+            DayNightMode.DARK       -> false
+            DayNightMode.LIGHT      -> true
+            // Headlights first, then sunrise/sunset, then dark
+            DayNightMode.AUTO       -> when (lights) {
+                Headlight.ON -> false
+                Headlight.OFF -> true
+                Headlight.UNAVAILABLE -> sun() ?: false
+            }
+            DayNightMode.HEADLIGHTS -> lights == Headlight.OFF
+            DayNightMode.SYSTEM     -> false // placeholder — overridden in MainActivity via isSystemInDarkTheme()
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
@@ -655,6 +669,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     override fun onCleared() {
         super.onCleared()
+        headlights.release()
         locationMgr.stop()
         radioObserver?.let { getApplication<Application>().contentResolver.unregisterContentObserver(it) }
         radioObserver = null

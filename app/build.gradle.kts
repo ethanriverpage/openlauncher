@@ -55,6 +55,8 @@ android {
 
     buildFeatures {
         compose = true
+        // com.tw.carinfoservice binder (src/main/aidl)
+        aidl = true
     }
 
     lint {

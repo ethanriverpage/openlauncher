@@ -6,7 +6,12 @@ import androidx.compose.ui.graphics.toArgb
 enum class ClockStyle { DIGITAL, ANALOG }
 enum class UnitSystem { METRIC, IMPERIAL }
 enum class AppFont { SYSTEM, JETBRAINS_MONO, SOURCE_CODE_PRO }
-enum class DayNightMode { DARK, LIGHT, AUTO, SYSTEM }
+/**
+ * AUTO: headlights when the car reports them, else local sunrise/sunset, else dark.
+ * HEADLIGHTS: headlights only (dark when the signal is unavailable).
+ * Stored by name, so new values can be appended safely.
+ */
+enum class DayNightMode { DARK, LIGHT, AUTO, SYSTEM, HEADLIGHTS }
 enum class SidebarPosition { LEFT, RIGHT, BOTTOM }
 enum class GradientDirection { TOP_TO_BOTTOM, LEFT_TO_RIGHT, DIAGONAL, RADIAL }
 
