@@ -162,7 +162,7 @@ private fun MediaPlayer(
     val artColor = remember(state.albumArt) { state.albumArt?.let(::averageColor) }
     val bgTarget = artColor?.let { (if (isDayMode) it.copy(alpha = 0.26f) else it.copy(alpha = 0.34f)).compositeOver(c.tile) } ?: c.tile
     // A new track's colour washes in rather than snapping
-    val bg by androidx.compose.animation.animateColorAsState(bgTarget, androidx.compose.animation.core.tween(600), label = "artTint")
+    val bg by androidx.compose.animation.animateColorAsState(bgTarget, com.openlauncher.app.ui.theme.themeAware(androidx.compose.animation.core.tween(600)), label = "artTint")
 
     BoxWithConstraints(modifier.background(bg)) {
         val showArt = maxWidth > 640.dp && state.albumArt != null

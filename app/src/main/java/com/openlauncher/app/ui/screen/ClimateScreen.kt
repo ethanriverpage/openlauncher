@@ -206,11 +206,16 @@ private fun FanTile(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
+                    // Bars fill and empty in sequence, counted from the first bar that changes,
+                    // so a one-step press answers at once
+                    var shownLevel by remember { mutableIntStateOf(level) }
+                    val prev = shownLevel
+                    SideEffect { shownLevel = level }
                     for (i in 1..7) {
-                        // Bars fill and empty in sequence as the level steps
+                        val step = if (level >= prev) i - (prev + 1) else prev - i
                         val bar by animateColorAsState(
                             if (i <= level && !dim) c.tint else c.fill,
-                            tween(HigMotion.STATE, delayMillis = 18 * i, easing = EaseOutExpo), label = "fanbar"
+                            com.openlauncher.app.ui.theme.themeAware(tween(HigMotion.STATE, delayMillis = 18 * step.coerceAtLeast(0), easing = EaseOutExpo)), label = "fanbar"
                         )
                         Box(Modifier.weight(1f).fillMaxHeight(0.3f + 0.7f * i / 7f).clip(RoundedCornerShape(6.dp)).background(bar))
                     }
@@ -270,8 +275,8 @@ private fun airflowName(mode: Int?): String = when (mode) {
 @Composable
 private fun ToggleTile(t: Toggle, modifier: Modifier, onClick: () -> Unit) {
     val c = Hig.colors
-    val fg by animateColorAsState(if (t.on) c.onToggleOn else c.label2, HigMotion.state(), label = "toggleFg")
-    val bg by animateColorAsState(if (t.on) c.toggleOn else c.tile, HigMotion.state(), label = "toggleBg")
+    val fg by animateColorAsState(if (t.on) c.onToggleOn else c.label2, com.openlauncher.app.ui.theme.themeAware(HigMotion.state()), label = "toggleFg")
+    val bg by animateColorAsState(if (t.on) c.toggleOn else c.tile, com.openlauncher.app.ui.theme.themeAware(HigMotion.state()), label = "toggleBg")
     Column(
         modifier
             .clip(RoundedCornerShape(22.dp))
@@ -294,26 +299,36 @@ private fun ToggleTile(t: Toggle, modifier: Modifier, onClick: () -> Unit) {
 }
 
 /**
- * A temperature that rolls in the direction it moved, clipped to its line: warmer
- * rises in from below, cooler drops in from above. LO/HI and "--" simply cross-fade.
+ * A temperature that rolls like an odometer: only the digits that changed move, each
+ * clipped to its own line. Warmer rises in from below, cooler drops in from above.
+ * A change of shape (LO, HI, "--", a new digit count) cross-fades instead.
  */
 @Composable
 private fun RollingNumber(text: String, style: androidx.compose.ui.text.TextStyle, color: androidx.compose.ui.graphics.Color) {
-    AnimatedContent(
-        targetState = text,
-        transitionSpec = {
-            val from = initialState.removeSuffix("°").toFloatOrNull()
-            val to = targetState.removeSuffix("°").toFloatOrNull()
-            val dir = if (from == null || to == null) 0 else if (to > from) 1 else -1
-            if (dir == 0) fadeIn(HigMotion.state()) togetherWith fadeOut(HigMotion.feedback())
-            // Clipped to the number's own line, like an odometer, so old and new never smear
-            // Same distance and curve both ways: the two numbers stay one line apart
-            else slideInVertically(tween(300, easing = EaseOutExpo)) { h -> dir * h } togetherWith
-                 slideOutVertically(tween(300, easing = EaseOutExpo)) { h -> -dir * h } using
-                 SizeTransform(clip = true)
-        },
-        label = "temp"
-    ) { t -> Text(t, style = style, color = color, maxLines = 1) }
+    var previous by remember { mutableStateOf(text) }
+    val from = previous.removeSuffix("°").toFloatOrNull()
+    val to = text.removeSuffix("°").toFloatOrNull()
+    val dir = if (from == null || to == null || from == to) 0 else if (to > from) 1 else -1
+    SideEffect { previous = text }
+    if (dir == 0 || previous.length != text.length) {
+        AnimatedContent(text, transitionSpec = { fadeIn(HigMotion.state()) togetherWith fadeOut(HigMotion.feedback()) }, label = "temp") { t ->
+            Text(t, style = style, color = color, maxLines = 1)
+        }
+        return
+    }
+    Row {
+        text.forEachIndexed { i, ch ->
+            AnimatedContent(
+                targetState = ch,
+                transitionSpec = {
+                    slideInVertically(tween(300, easing = EaseOutExpo)) { h -> dir * h } togetherWith
+                    slideOutVertically(tween(300, easing = EaseOutExpo)) { h -> -dir * h } using
+                    SizeTransform(clip = true)
+                },
+                label = "digit$i"
+            ) { c -> Text(c.toString(), style = style, color = color, maxLines = 1) }
+        }
+    }
 }
 
 internal fun tempLabel(t: Float?, lo: Boolean, hi: Boolean, unit: String?): String = when {

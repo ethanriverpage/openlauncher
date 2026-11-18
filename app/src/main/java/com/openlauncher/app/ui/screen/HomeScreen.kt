@@ -215,6 +215,12 @@ fun HomeScreen(
                     )
                 } else null
                 val scope = rememberCoroutineScope()
+                // Two beats: the edit bar opens and the grid settles, then the badges pop,
+                // so nothing pops onto a grid that is still moving
+                var badgesOn by remember { mutableStateOf(editMode) }
+                LaunchedEffect(editMode) {
+                    if (editMode) { kotlinx.coroutines.delay(if (reduceMotion) 0L else 140L); badgesOn = true } else badgesOn = false
+                }
 
                 visible.forEachIndexed { index, w ->
                     val (pos, width, height) = cellRect(w.gridX, w.gridY, w.spanX, w.spanY)
@@ -306,8 +312,8 @@ fun HomeScreen(
 
                         // Badges sit on the corners, outside the tile's clip, like iOS
                         val badge by animateFloatAsState(
-                            if (editMode && !isDragging) 1f else 0f,
-                            if (editMode && !isDragging) HigMotion.pop() else HigMotion.feedback(), label = "badge"
+                            if (badgesOn && editMode && !isDragging) 1f else 0f,
+                            if (badgesOn && editMode && !isDragging) HigMotion.pop() else HigMotion.feedback(), label = "badge"
                         )
                         if (badge > 0.01f) {
                             Box(

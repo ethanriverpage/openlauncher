@@ -343,7 +343,7 @@ private fun NavButton(
     val c = Hig.colors
     // The selection fill crossfades from the old destination to the new one
     val fill by androidx.compose.animation.animateColorAsState(
-        if (active) c.fill else c.fill.copy(alpha = 0f), com.openlauncher.app.ui.theme.HigMotion.state(), label = "nav"
+        if (active) c.fill else c.fill.copy(alpha = 0f), com.openlauncher.app.ui.theme.themeAware(com.openlauncher.app.ui.theme.HigMotion.state()), label = "nav"
     )
     Box(
         Modifier
@@ -354,7 +354,10 @@ private fun NavButton(
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center
     ) {
-        Icon(if (active) selectedIcon else icon, null, tint = if (active) c.label else c.label2, modifier = Modifier.size(30.dp))
+        // Outline and filled glyphs cross-fade on the same curve as the selection fill
+        androidx.compose.animation.Crossfade(active, animationSpec = com.openlauncher.app.ui.theme.HigMotion.state(), label = "navIcon") { on ->
+            Icon(if (on) selectedIcon else icon, null, tint = if (on) c.label else c.label2, modifier = Modifier.size(30.dp))
+        }
     }
 }
 

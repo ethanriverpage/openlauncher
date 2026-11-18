@@ -318,8 +318,9 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .home.editing .tile:nth-child(4n){animation-duration:.56s}
 /* Entering edit mode: badges pop, the bar opens */
 @keyframes badgePop{0%{opacity:0;transform:scale(.4)}100%{opacity:1;transform:none}}
-.home.edit-in .badge{animation:badgePop .42s var(--pop) both}
-.home.edit-in .badge.sz{animation-delay:.04s}
+/* Two beats: the bar opens and the grid settles, then badges pop onto a still grid */
+.home.edit-in .badge{animation:badgePop .42s var(--pop) .14s both}
+.home.edit-in .badge.sz{animation-delay:.18s}
 @keyframes barOpen{from{height:0}}
 .home.edit-in .editbar{animation:barOpen .3s var(--ease-out)}
 /* Menus grow from their anchor corner */
@@ -328,25 +329,24 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .menu.leaving,.scrim.leaving{animation:menuOut .11s ease-in forwards;pointer-events:none}
 @keyframes menuOut{to{opacity:0;transform:scale(.94)}}
 /* Segmented thumb slides: while a thumb is in flight the target button stays clear */
-.tmpclip{position:relative;display:inline-block;overflow:hidden;padding:.06em .04em 0}
-.tmpclip .tmp{display:block}
-.tmpclip .ghost{position:absolute;left:.04em;top:.06em;pointer-events:none}
+/* Each digit sits in its own clipped cell (always, so rolling never shifts layout) */
+.tmp .dg{display:inline-block;position:relative;clip-path:inset(-.06em -.3em)}
+.tmp .dg>span{display:block}
+.tmp .dg>.ghost{position:absolute;inset:0}
 .seg{position:relative}
 .seg button{position:relative;z-index:1}
 .seg .thumb{position:absolute;z-index:0;top:3px;bottom:3px;border-radius:9px;background:var(--tile);box-shadow:0 1px 3px rgba(0,0,0,.2);pointer-events:none}
-.hu[data-mode="dark"] .seg .thumb{background:#636366;box-shadow:none}
+.hu[data-mode="dark"] .seg .thumb{background:#636366}
 .seg button.thumb-hold{background:transparent!important;box-shadow:none!important}
-/* Theme dissolve (View Transitions): only the head unit cross-fades */
-.hu{view-transition-name:hu}
-::view-transition-old(hu),::view-transition-new(hu){animation-duration:.7s;animation-timing-function:cubic-bezier(.4,0,.2,1)}
-::view-transition-old(root),::view-transition-new(root){animation:none}
 /* Reduced motion, from the OS or the workspace toggle: cuts, no jiggle */
 .hu[data-motion="reduced"] *,.hu[data-motion="reduced"] *::before,.hu[data-motion="reduced"] *::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}
 .hu[data-motion="reduced"] .tile{animation:none!important}
+/* While the palette fades, element colour transitions would chase it frame by frame; let them ride it */
+.hu[data-theming] *{transition:none!important}
 
 @media (prefers-reduced-motion: reduce){
-  .home.editing .tile{animation:none!important}
-  .hu *,.hu *::before,.hu *::after{animation-duration:1ms!important;transition-duration:1ms!important}
+  .hu .home.editing .tile,.hu .home.editing .tile:not(.lifted){animation:none!important}
+  .hu *,.hu *::before,.hu *::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}
 }
 </style>
 </head>
@@ -431,6 +431,7 @@ const onTint = () => ['yellow','green','teal'].includes(S.tint) || (S.tint==='or
 const appBy = n => APPS.find(a=>a[0]===n);
 const icon = (n,cls='') => { const a=appBy(n); return a?`<span class="appicon ${cls}" style="background:linear-gradient(160deg,${a[1]},${a[2]})">${ms(a[3],1)}</span>`:`<span class="appicon empty ${cls}">${ms('add')}</span>`; };
 const fmtT = v => v<=60?'LO':v>=85?'HI':v+'°';
+const digits = t => [...t].map(c=>`<span class="dg"><span>${c}</span></span>`).join('');
 
 /* ── Layout logic (port of computeWidgetMove) ── */
 const occ = (L,skip) => { const s=new Set(); L.forEach(w=>{ if(w.id===skip) return; for(let dx=0;dx<w.w;dx++)for(let dy=0;dy<w.h;dy++) s.add((w.x+dx)+','+(w.y+dy)); }); return s; };
@@ -503,7 +504,7 @@ function home(){
     <div class="editbar"><span class="t-title2 grow">Edit Home Screen</span>
       <button class="pill" data-a="gallery">${ms('add')}Add Widget</button><button class="pill primary" data-a="done">Done</button></div>
     <div class="grid" id="grid"><div class="cells">${cells}</div>
-    ${S.layout.map(w=>`<div class="tile" data-id="${w.id}" data-lp="edit" style="grid-column:${w.x+1}/span ${w.w};grid-row:${w.y+1}/span ${w.h}">
+    ${S.layout.map(w=>`<div class="tile" tabindex="0" data-id="${w.id}" data-lp="edit" style="grid-column:${w.x+1}/span ${w.w};grid-row:${w.y+1}/span ${w.h}">
       <button class="badge rm" aria-label="Remove ${WIDGETS[w.id].name}" data-a="rm" data-v="${w.id}">${ms('remove')}</button>
       <button class="badge sz" aria-label="Resize ${WIDGETS[w.id].name}" data-a="szmenu" data-v="${w.id}">${ms('open_in_full')}</button>
       ${W[w.id]()}</div>`).join('')}</div></section>`;
@@ -532,17 +533,17 @@ function climate(){
   const c=S.clim, off=c.fan===0;
   if(c.rearOpen){ const r=c.rear;
     return `<section class="screen clim" aria-label="Rear climate">
-     <div class="zone"><span class="lbl">Rear</span><span class="tmpclip"><span class="tmp" data-k="rear">${fmtT(r.temp)}</span></span><div class="stp"><button class="stepb" aria-label="Rear cooler" data-a="rtemp" data-v="-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Rear warmer" data-a="rtemp" data-v="1">${ms('keyboard_arrow_up')}</button></div></div>
+     <div class="zone"><span class="lbl">Rear</span><span class="tmp" data-k="rear" aria-label="${fmtT(r.temp)}">${digits(fmtT(r.temp))}</span><div class="stp"><button class="stepb" aria-label="Rear cooler" data-a="rtemp" data-v="-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Rear warmer" data-a="rtemp" data-v="1">${ms('keyboard_arrow_up')}</button></div></div>
      <div class="fanzone"><div class="fanrow"><button class="stepb" aria-label="Rear fan lower" data-a="rfan" data-v="-1">${ms('remove')}</button><div class="segs" data-k="rear">${[...Array(7)].map((_,i)=>`<i class="${i<r.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Rear fan higher" data-a="rfan" data-v="1">${ms('add')}</button></div>
        <div class="t-foot" style="text-align:center">Rear fan ${r.fan} of 7</div></div>
      <div class="zone" style="justify-content:center;gap:14px"><button class="pill" data-a="rearback">${ms('chevron_left')}Front</button></div>
      <div class="toggles"><button class="tg" aria-pressed="${r.auto}" data-a="rtog" data-v="auto">${ms('hdr_auto')}Rear Auto</button><button class="tg" aria-pressed="${r.on}" data-a="rtog" data-v="on">${ms('power_settings_new')}${r.on?'Rear On':'Rear Off'}</button></div></section>`; }
   const tg=(k,label,ic,ab)=>`<button class="tg" aria-pressed="${k==='off'?off:!!c[k]}" data-a="ctog" data-v="${k}">${ab?`<span class="ab" aria-label="${label}">${ab}</span>`:ms(ic)+label}</button>`;
   return `<section class="screen clim ${off?'off':''}" aria-label="Climate">
-   <div class="zone"><span class="lbl">Driver</span><span class="tmpclip"><span class="tmp" data-k="left">${fmtT(c.left)}</span></span><div class="stp"><button class="stepb" aria-label="Driver cooler" data-a="temp" data-v="left,-1" ${c.left<=60?'disabled':''}>${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Driver warmer" data-a="temp" data-v="left,1" ${c.left>=85?'disabled':''}>${ms('keyboard_arrow_up')}</button></div></div>
+   <div class="zone"><span class="lbl">Driver</span><span class="tmp" data-k="left" aria-label="${fmtT(c.left)}">${digits(fmtT(c.left))}</span><div class="stp"><button class="stepb" aria-label="Driver cooler" data-a="temp" data-v="left,-1" ${c.left<=60?'disabled':''}>${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Driver warmer" data-a="temp" data-v="left,1" ${c.left>=85?'disabled':''}>${ms('keyboard_arrow_up')}</button></div></div>
    <div class="fanzone"><span class="lbl" style="text-align:center;font-size:calc(17px*var(--ts));color:var(--label2);font-weight:600">${off?'Off':'Fan '+c.fan}</span><div class="fanrow"><button class="stepb" aria-label="Fan lower" data-a="fan" data-v="-1">${ms('remove')}</button><div class="segs" data-k="front" aria-label="Fan ${c.fan} of 7">${[...Array(7)].map((_,i)=>`<i class="${i<c.fan?'on':''}" style="height:${30+i*10}%"></i>`).join('')}</div><button class="stepb" aria-label="Fan higher" data-a="fan" data-v="1">${ms('add')}</button></div>
      <div class="airrow" role="group" aria-label="Airflow">${[['face','airline_seat_recline_normal'],['face_floor','airline_seat_recline_extra'],['floor','airline_seat_legroom_normal'],['floor_def','windshield_defrost_front']].map(([k,i])=>`<button aria-label="Airflow ${k.replace('_',' and ')}" aria-pressed="${c.air===k}" data-a="air" data-v="${k}">${ms(i)}</button>`).join('')}</div></div>
-   <div class="zone"><span class="lbl">Passenger${c.dual?'':' · Synced'}</span><span class="tmpclip"><span class="tmp" data-k="right">${fmtT(c.dual?c.right:c.left)}</span></span><div class="stp"><button class="stepb" aria-label="Passenger cooler" data-a="temp" data-v="right,-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Passenger warmer" data-a="temp" data-v="right,1">${ms('keyboard_arrow_up')}</button></div></div>
+   <div class="zone"><span class="lbl">Passenger${c.dual?'':' · Synced'}</span><span class="tmp" data-k="right" aria-label="${fmtT(c.dual?c.right:c.left)}">${digits(fmtT(c.dual?c.right:c.left))}</span><div class="stp"><button class="stepb" aria-label="Passenger cooler" data-a="temp" data-v="right,-1">${ms('keyboard_arrow_down')}</button><button class="stepb" aria-label="Passenger warmer" data-a="temp" data-v="right,1">${ms('keyboard_arrow_up')}</button></div></div>
    <div class="toggles">${tg('off','Off','power_settings_new')}${tg('auto','Auto','hdr_auto')}${tg('ac','A/C','ac_unit')}${tg('recirc','Recirculate','autorenew')}${tg('fdef','Front Defrost','windshield_defrost_front')}${tg('rdef','Rear Defrost','windshield_defrost_rear')}${tg('dual','Dual','group')}
      <button class="tg" data-a="rearopen">${ms('airline_seat_recline_normal')}Rear Seats</button></div></section>`;
 }
@@ -615,10 +616,11 @@ const keyOf = el => {
 function snapshot(){
   const snap={tiles:{},colors:{},segs:[],temps:{},bars:{},menu:null,editing:!!$('.home.editing'),mode:hu.dataset.mode};
   hu.querySelectorAll('.tile[data-id]').forEach(t=>snap.tiles[t.dataset.id]=t.getBoundingClientRect());
-  hu.querySelectorAll(COLOR_SEL).forEach(el=>{const cs=getComputedStyle(el);snap.colors[keyOf(el)]={bg:cs.backgroundColor,fg:cs.color};});
+  hu.querySelectorAll(COLOR_SEL).forEach(el=>{const cs=getComputedStyle(el);const ic=el.querySelector('.ms');snap.colors[keyOf(el)]={bg:cs.backgroundColor,fg:cs.color,fvs:ic?getComputedStyle(ic).fontVariationSettings:null};});
+  hu.querySelectorAll('.segs[data-k]').forEach(g=>snap.bars[g.dataset.k]=g.querySelectorAll('i.on').length);
   hu.querySelectorAll('.seg').forEach(g=>{const b=g.querySelector('button[aria-pressed="true"]');const gr=g.getBoundingClientRect();
     snap.segs.push(b?{i:[...g.querySelectorAll('button')].indexOf(b),l:b.getBoundingClientRect().left-gr.left,w:b.getBoundingClientRect().width}:null);});
-  hu.querySelectorAll('.tmp[data-k]').forEach(t=>snap.temps[t.dataset.k]=t.textContent);
+  hu.querySelectorAll('.tmp[data-k]').forEach(t=>snap.temps[t.dataset.k]=t.getAttribute('aria-label'));
   const m=hu.querySelector('.menu'); if(m) snap.menu=m.cloneNode(true);
   return snap;
 }
@@ -639,12 +641,17 @@ function animateFrom(snap){
     const an=anim(t,[{transform:`translate(${dx}px,${dy}px) scale(${a.width/s/lw},${a.height/s/lh})`},{transform:`scale(${sEnd})`}],{duration:420,easing:SETTLE});
     an&&an.finished.then(()=>t.style.zIndex='').catch(()=>{});
   });
-  // 3. Colours fade from their old values: nav selection, toggles, fan bars (bars in sequence)
+  // 3. Colours fade from their old values: nav selection (and its icon fill), toggles, fan bars.
+  //    Fan bars run in sequence counted from the first bar that changed.
   hu.querySelectorAll(COLOR_SEL).forEach(el=>{
     const old=snap.colors[keyOf(el)]; if(!old) return; const cs=getComputedStyle(el);
     if(old.bg===cs.backgroundColor && old.fg===cs.color) return;
-    const i=el.matches('.segs i')?[...el.parentElement.children].indexOf(el):0;
-    anim(el,[{backgroundColor:old.bg,color:old.fg},{backgroundColor:cs.backgroundColor,color:cs.color}],{duration:240,delay:18*i,easing:EASE,fill:'backwards'});
+    let delay=0;
+    if(el.matches('.segs i')){ const i=[...el.parentElement.children].indexOf(el), prev=snap.bars[el.parentElement.dataset.k]??0,
+      now=el.parentElement.querySelectorAll('i.on').length; delay=18*Math.max(0, now>=prev ? i-prev : prev-1-i); }
+    anim(el,[{backgroundColor:old.bg,color:old.fg},{backgroundColor:cs.backgroundColor,color:cs.color}],{duration:240,delay,easing:EASE,fill:'backwards'});
+    const ic=el.querySelector('.ms'); if(ic && old.fvs){ const now=getComputedStyle(ic).fontVariationSettings;
+      if(now!==old.fvs) anim(ic,[{fontVariationSettings:old.fvs},{fontVariationSettings:now}],{duration:240,easing:EASE}); }
   });
   // 4. Segmented thumbs slide between segments
   hu.querySelectorAll('.seg').forEach((g,gi)=>{
@@ -654,39 +661,68 @@ function animateFrom(snap){
     const th=document.createElement('i'); th.className='thumb'; g.prepend(th); b.classList.add('thumb-hold');
     // Labels change colour with the thumb, not ahead of it
     const oldOn=btns[was.i], onC=getComputedStyle(b).color, offC=oldOn?getComputedStyle(oldOn).color:onC;
-    anim(b,[{color:offC},{color:onC}],{duration:220,delay:120,easing:'ease-out',fill:'backwards'});
-    if(oldOn) anim(oldOn,[{color:onC},{color:offC}],{duration:160,easing:'ease-out',fill:'backwards'});
-    const an=anim(th,[{left:was.l/s+'px',width:was.w/s+'px'},{left:(br.left-gr.left)/s+'px',width:br.width/s+'px'}],{duration:340,easing:'cubic-bezier(.3,1.2,.5,1)',fill:'forwards'});
+    anim(b,[{color:offC},{color:onC}],{duration:160,delay:80,easing:'ease-out',fill:'backwards'});
+    if(oldOn) anim(oldOn,[{color:onC},{color:offC}],{duration:120,easing:'ease-out',fill:'backwards'});
+    const an=anim(th,[{left:was.l/s+'px',width:was.w/s+'px'},{left:(br.left-gr.left)/s+'px',width:br.width/s+'px'}],{duration:240,easing:EASE,fill:'forwards'});
     const done=()=>{th.remove();b.classList.remove('thumb-hold');}; an?an.finished.then(done).catch(done):done();
   });
-  // 5. Temperatures roll the way they moved, clipped to their own line like an odometer:
-  //    warmer rises in from below, cooler drops in from above
+  // 5. Temperatures roll like an odometer: only changed digits move, each in its own clipped
+  //    cell, old and new one line apart on the same curve. Shape changes (LO/HI) cross-fade.
   hu.querySelectorAll('.tmp[data-k]').forEach(t=>{
-    const before=snap.temps[t.dataset.k], now=t.textContent; if(before===undefined||before===now) return;
+    const before=snap.temps[t.dataset.k], now=t.getAttribute('aria-label'); if(before===undefined||before===now) return;
     const f=parseFloat(before), n=parseFloat(now), dir=isNaN(f)||isNaN(n)?0:(n>f?1:-1);
-    const ghost=t.cloneNode(true); ghost.textContent=before; ghost.removeAttribute('data-k'); ghost.classList.add('ghost');
-    t.parentElement.appendChild(ghost);
-    // Same distance, same curve: old and new stay exactly one line apart, so they never overlap
-    const h=t.parentElement.offsetHeight, o={duration:300,easing:EASE};
-    anim(t,[{transform:`translateY(${dir*h}px)`,opacity:dir?1:0},{transform:'none',opacity:1}],{...o,fill:'backwards'});
-    const g=anim(ghost,[{transform:'none',opacity:1},{transform:`translateY(${-dir*h}px)`,opacity:dir?1:0}],{...o,fill:'forwards'});
-    g?g.finished.then(()=>ghost.remove()).catch(()=>ghost.remove()):ghost.remove();
+    if(!dir || before.length!==now.length){ anim(t,[{opacity:0},{opacity:1}],{duration:240,easing:EASE}); return; }
+    const cells=t.querySelectorAll('.dg');
+    [...now].forEach((ch,i)=>{ if(before[i]===ch) return; const cell=cells[i], cur=cell.firstElementChild, h=cell.offsetHeight*1.1;
+      const ghost=document.createElement('span'); ghost.className='ghost'; ghost.textContent=before[i]; cell.appendChild(ghost);
+      const o={duration:300,easing:EASE};
+      anim(cur,[{transform:`translateY(${dir*h}px)`},{transform:'none'}],{...o,fill:'backwards'});
+      const g=anim(ghost,[{transform:'none'},{transform:`translateY(${-dir*h}px)`}],{...o,fill:'forwards'});
+      g?g.finished.then(()=>ghost.remove()).catch(()=>ghost.remove()):ghost.remove(); });
   });
   // 6. A closed menu fades out instead of vanishing
   if(snap.menu && !hu.querySelector('.menu')){ const m=snap.menu; m.classList.add('leaving'); hu.appendChild(m); setTimeout(()=>m.remove(),160/rate()); }
 }
+const THEME_VARS=['--bg','--tile','--fill','--fill2','--sep','--label','--label2','--label3','--red','--green','--yellow','--orange','--scrim','--sheet','--menu','--tint','--on-tint','--np-bg'];
+const TEXT_VARS=new Set(['--label','--label2','--label3','--on-tint']);
+const cctx=document.createElement('canvas').getContext('2d');
+const rgba=c=>{ cctx.fillStyle='#000'; cctx.fillStyle=c; const v=cctx.fillStyle; if(v[0]==='#') return [parseInt(v.slice(1,3),16),parseInt(v.slice(3,5),16),parseInt(v.slice(5,7),16),1]; const m=v.match(/[\d.]+/g).map(Number); return [m[0],m[1],m[2],m[3]??1]; };
+const mix=(a,b,t)=>a.map((x,i)=>x+(b[i]-x)*t);
+const css=c=>`rgba(${c[0].toFixed(1)},${c[1].toFixed(1)},${c[2].toFixed(1)},${c[3].toFixed(3)})`;
+const lum=c=>{ const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}; return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2]); };
+const bez=(x1,y1,x2,y2)=>t=>{ let a=t; for(let i=0;i<8;i++){ const x=3*x1*a*(1-a)**2+3*x2*a*a*(1-a)+a**3-t, dx=3*x1*(1-a)**2+6*(x2-x1)*a*(1-a)+3*(1-x2)*a*a; if(Math.abs(dx)<1e-6) break; a-=x/dx; } return 3*y1*a*(1-a)**2+3*y2*a*a*(1-a)+a**3; };
+const fastOutSlowIn=bez(.4,0,.2,1);
+const readVars=()=>{ const cs=getComputedStyle(hu); return Object.fromEntries(THEME_VARS.map(v=>[v,rgba(cs.getPropertyValue(v).trim()||'#000')])); };
+// Registered as <color> so the tokens themselves can be animated (and measured) as Web Animations
+try{ THEME_VARS.forEach(v=>CSS.registerProperty({name:v,syntax:'<color>',inherits:true,initialValue:'transparent'})); }catch(e){}
+let themeAnims=[], themeT=0;
+function themeFade(fromVals,oldMode){
+  // Surfaces fade for 700ms; text tokens and mode-specific styling flip in a ~70ms window where
+  // the tile crosses mid-luminance (0.18), so numerals never fade into a matching grey.
+  themeAnims.forEach(a=>a.cancel()); clearTimeout(themeT);
+  const newMode=S.mode, toVals=readVars();
+  const startDark=lum(fromVals['--tile'])<=.18; let tc=.5;
+  for(let i=1;i<=50;i++){ const t=i/50; if((lum(mix(fromVals['--tile'],toVals['--tile'],t))<=.18)!==startDark){ tc=t; break; } }
+  let rtc=.5; for(let i=1;i<=200;i++){ if(fastOutSlowIn(i/200)>=tc){ rtc=i/200; break; } }   // eased progress → time
+  const surf=THEME_VARS.filter(v=>!TEXT_VARS.has(v)), text=THEME_VARS.filter(v=>TEXT_VARS.has(v));
+  const kf=(vars,vals)=>Object.fromEntries(vars.map(v=>[v,css(vals[v])]));
+  const dur=700/rate();
+  themeAnims=[
+    hu.animate([kf(surf,fromVals),kf(surf,toVals)],{duration:dur,easing:'cubic-bezier(.4,0,.2,1)'}),
+    hu.animate([{offset:0,...kf(text,fromVals)},{offset:Math.max(0,rtc-.05),...kf(text,fromVals)},{offset:Math.min(1,rtc+.05),...kf(text,toVals)},{offset:1,...kf(text,toVals)}],{duration:dur})
+  ];
+  hu.dataset.mode=oldMode; hu.dataset.theming=''; themeT=setTimeout(()=>{ hu.dataset.mode=newMode; },dur*rtc);
+  Promise.all(themeAnims.map(a=>a.finished)).then(()=>delete hu.dataset.theming).catch(()=>{});
+}
 function render(){
   const snap=snapshot();
-  const themeChange = snap.mode && snap.mode!==S.mode && !reduced() && document.startViewTransition;
+  const themeChange = snap.mode && snap.mode!==S.mode && !reduced();
   hu.dataset.motion = reduced()?'reduced':'full';
   // Capture tooling needs finite motion; #nojiggle=true records edit entry without the loop
   if(S.nojiggle) hu.dataset.captureNojiggle=''; else delete hu.dataset.captureNojiggle;
-  if(themeChange){
-    // The day/night switch dissolves over 700 ms; nothing else animates under it
-    const vt=document.startViewTransition(()=>doRender());
-    vt.ready.then(()=>document.getAnimations().forEach(a=>{ if(String(a.effect?.pseudoElement||'').includes('view-transition')) a.playbackRate=rate(); })).catch(()=>{});
-    return;
-  }
+  // The flag goes on before the rebuild: doRender() forces a style pass, and new elements must
+  // never see a transition-enabled style mid-fade
+  if(themeChange){ const fromVals=readVars(); hu.dataset.theming=''; doRender(); themeFade(fromVals,snap.mode); return; }
   doRender(); animateFrom(snap); applyRate();
 }
 function applyRate(){ if(rate()===1) return; hu.getAnimations({subtree:true}).forEach(a=>{ if(!a._r){a.playbackRate=rate();a._r=1;} }); }
@@ -696,7 +732,7 @@ function doRender(){
   const t=tint();
   hu.dataset.mode=S.mode; hu.dataset.side=S.side;
   hu.style.setProperty('--tint',t); hu.style.setProperty('--on-tint',onTint()); hu.style.setProperty('--ts',S.ts);
-  hu.style.setProperty('--np-bg',S.mode==='dark'?'color-mix(in oklab,#2f4a63 34%,#1C1C1E)':'color-mix(in oklab,#9fb6cc 30%,#fff)');
+  hu.style.setProperty('--np-bg',S.mode==='dark'?'#222c36':'#e2e9f0');
   const [w,h]=S.preset.split('x').map(Number);
   hu.style.width=(w/S.uiScale)+'px'; hu.style.height=(h/S.uiScale)+'px'; hu.style.zoom=S.uiScale;
   const scr={home,apps,climate,settings}[S.screen]();
@@ -772,6 +808,7 @@ hu.addEventListener('input',e=>{ if(e.target.id==='q'){S.query=e.target.value;re
 
 /* ── Long-press + drag ── */
 let lpT=null, start=null, drag=null, suppressClick=false;
+hu.addEventListener('keydown',e=>{ if(e.key==='Enter' && e.target.matches('.tile') && !S.editing){ e.preventDefault(); S.editing=true; render(); } });
 hu.addEventListener('pointerdown',e=>{
   const lp=e.target.closest('[data-lp]'); if(!lp||e.target.closest('.badge')) return;
   start={x:e.clientX,y:e.clientY,el:lp};

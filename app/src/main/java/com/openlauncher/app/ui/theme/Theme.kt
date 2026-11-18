@@ -95,6 +95,9 @@ fun higColors(tint: Color, isDayMode: Boolean, hasWallpaper: Boolean): HigColors
 val LocalHig = staticCompositionLocalOf { higColors(DefaultTint.dark, isDayMode = false, hasWallpaper = false) }
 val LocalHigType = staticCompositionLocalOf { HigType(1f) }
 
+/** True while the palette itself is fading (day/night, accent). See [themeAware]. */
+val LocalPaletteFading = staticCompositionLocalOf { false }
+
 object Hig {
     val colors: HigColors @Composable get() = LocalHig.current
     val type: HigType @Composable get() = LocalHigType.current
@@ -111,6 +114,7 @@ fun OpenLauncherTheme(
     val tint = resolveTint(accentArgb, isDayMode)
     val target = remember(tint, isDayMode, hasWallpaper) { higColors(tint, isDayMode, hasWallpaper) }
     val c = animatedPalette(target)
+    val fading = c != target
     val type = remember(textScale) { HigType(textScale) }
     val scheme = if (isDayMode) lightColorScheme(
         primary = c.tint, onPrimary = c.onTint, background = c.bg, onBackground = c.label,
@@ -125,6 +129,7 @@ fun OpenLauncherTheme(
         LocalDayMode provides isDayMode,
         LocalHig provides c,
         LocalHigType provides type,
+        LocalPaletteFading provides fading,
     ) {
         MaterialTheme(colorScheme = scheme, typography = materialTypography(textScale), content = content)
     }
@@ -141,11 +146,15 @@ private fun animatedPalette(target: HigColors): HigColors {
     val shown = remember { arrayOf(target) }
     val from = remember { arrayOf(target) }
     val last = remember { arrayOf(target) }
+    val crossover = remember { floatArrayOf(-1f) }
     val restart = remember { booleanArrayOf(false) }
     val progress = remember { Animatable(1f) }
     // Detect the change during composition so the first frame of a switch is the old
     // palette, not a one-frame flash of the new one
-    if (last[0] != target) { from[0] = shown[0]; last[0] = target; restart[0] = true }
+    if (last[0] != target) {
+        from[0] = shown[0]; last[0] = target; restart[0] = true
+        crossover[0] = crossoverPoint(from[0], target)
+    }
     LaunchedEffect(target) {
         if (!restart[0]) return@LaunchedEffect
         val ms = if (from[0].isDark != target.isDark) HigMotion.THEME else HigMotion.STATE
@@ -154,16 +163,36 @@ private fun animatedPalette(target: HigColors): HigColors {
         progress.animateTo(1f, tween(ms, easing = FastOutSlowInEasing))
     }
     val p = if (restart[0]) 0f else progress.value
-    shown[0] = if (p >= 1f) target else lerpPalette(from[0], target, p)
+    shown[0] = if (p >= 1f) target else lerpPalette(from[0], target, p, crossover[0])
     return shown[0]
 }
 
-private fun lerpPalette(a: HigColors, b: HigColors, t: Float) = HigColors(
-    isDark = b.isDark,
-    bg = lerp(a.bg, b.bg, t), tile = lerp(a.tile, b.tile, t), fill = lerp(a.fill, b.fill, t),
-    fill2 = lerp(a.fill2, b.fill2, t), separator = lerp(a.separator, b.separator, t),
-    label = lerp(a.label, b.label, t), label2 = lerp(a.label2, b.label2, t), label3 = lerp(a.label3, b.label3, t),
-    red = lerp(a.red, b.red, t), green = lerp(a.green, b.green, t), orange = lerp(a.orange, b.orange, t),
-    yellow = lerp(a.yellow, b.yellow, t), tint = lerp(a.tint, b.tint, t), onTint = lerp(a.onTint, b.onTint, t),
-    scrim = lerp(a.scrim, b.scrim, t), sheet = lerp(a.sheet, b.sheet, t), menu = lerp(a.menu, b.menu, t),
-)
+/**
+ * Where a day/night fade crosses mid-luminance (≈0.18, where white and black text read
+ * equally well on the tile). Text that faded linearly would meet the surface in the same
+ * grey and vanish, so text tokens switch here instead; surfaces keep the full fade.
+ * -1 when the fade doesn't cross (accent or wallpaper changes).
+ */
+private fun crossoverPoint(a: HigColors, b: HigColors): Float {
+    if (a.isDark == b.isDark) return -1f
+    val start = a.tile.luminance() > 0.18f
+    for (i in 1..50) {
+        val t = i / 50f
+        if ((lerp(a.tile, b.tile, t).luminance() > 0.18f) != start) return t
+    }
+    return 0.5f
+}
+
+private fun lerpPalette(a: HigColors, b: HigColors, t: Float, crossover: Float): HigColors {
+    // Text crosses over in a short window (~70ms of 700) around the crossover point
+    val tt = if (crossover < 0f) t else ((t - crossover) / 0.1f + 0.5f).coerceIn(0f, 1f)
+    return HigColors(
+        isDark = if (tt >= 0.5f) b.isDark else a.isDark,
+        bg = lerp(a.bg, b.bg, t), tile = lerp(a.tile, b.tile, t), fill = lerp(a.fill, b.fill, t),
+        fill2 = lerp(a.fill2, b.fill2, t), separator = lerp(a.separator, b.separator, t),
+        label = lerp(a.label, b.label, tt), label2 = lerp(a.label2, b.label2, tt), label3 = lerp(a.label3, b.label3, tt),
+        red = lerp(a.red, b.red, t), green = lerp(a.green, b.green, t), orange = lerp(a.orange, b.orange, t),
+        yellow = lerp(a.yellow, b.yellow, t), tint = lerp(a.tint, b.tint, t), onTint = lerp(a.onTint, b.onTint, tt),
+        scrim = lerp(a.scrim, b.scrim, t), sheet = lerp(a.sheet, b.sheet, t), menu = lerp(a.menu, b.menu, t),
+    )
+}

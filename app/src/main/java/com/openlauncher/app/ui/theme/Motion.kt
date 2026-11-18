@@ -39,6 +39,14 @@ object HigMotion {
     fun <T> feedback() = tween<T>(FEEDBACK, easing = EaseOutExpo)
 }
 
+/**
+ * A colour spec that rides the palette while it fades. Without this, every animateColorAsState
+ * would retarget on each frame of a day/night fade and trail ~240ms behind the surface it sits on.
+ */
+@Composable
+fun <T> themeAware(spec: androidx.compose.animation.core.AnimationSpec<T>): androidx.compose.animation.core.AnimationSpec<T> =
+    if (LocalPaletteFading.current) androidx.compose.animation.core.snap() else spec
+
 /** True when the system's animator duration scale is 0 ("Remove animations"). */
 @Composable
 fun rememberReduceMotion(): Boolean {

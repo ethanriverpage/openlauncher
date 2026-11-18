@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import com.openlauncher.app.ui.theme.HigMotion
+import com.openlauncher.app.ui.theme.themeAware
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -194,8 +195,8 @@ fun <T> Segmented(
     LaunchedEffect(target) {
         val (x, w) = target ?: return@LaunchedEffect
         if (!placed) { thumbX.snapTo(x); thumbW.snapTo(w); placed = true; return@LaunchedEffect }
-        launch { thumbX.animateTo(x, spring(dampingRatio = 0.86f, stiffness = 520f)) }
-        thumbW.animateTo(w, spring(dampingRatio = 0.86f, stiffness = 520f))
+        launch { thumbX.animateTo(x, HigMotion.state()) }
+        thumbW.animateTo(w, HigMotion.state())
     }
     val thumb = if (c.isDark) Color(0xFF636366) else Color.White
     val thumbShadow = Color.Black.copy(alpha = if (c.isDark) 0f else 0.10f)
@@ -220,7 +221,7 @@ fun <T> Segmented(
             // The label brightens as the thumb arrives, not before it
             val fg by animateColorAsState(
                 if (on) c.label else c.label2,
-                if (on) tween(220, delayMillis = 120) else tween(160), label = "segment"
+                themeAware(if (on) tween(220, delayMillis = 120) else tween(160)), label = "segment"
             )
             Box(
                 Modifier
@@ -247,7 +248,7 @@ fun <T> Segmented(
 @Composable
 fun HigSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val c = Hig.colors
-    val track by animateColorAsState(if (checked) c.green else c.fill2, label = "track")
+    val track by animateColorAsState(if (checked) c.green else c.fill2, themeAware(androidx.compose.animation.core.spring()), label = "track")
     val x by animateDpAsState(if (checked) 26.dp else 0.dp, spring(dampingRatio = 0.75f, stiffness = 700f), label = "knob")
     Box(
         modifier
