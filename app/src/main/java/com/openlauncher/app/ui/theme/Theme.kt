@@ -164,7 +164,10 @@ private fun animatedPalette(target: HigColors): HigColors {
         // Steep through mid-luminance so the grey middle of a day/night fade is brief
         progress.animateTo(1f, tween(ms, easing = if (crossover[0] >= 0f) CubicBezierEasing(0.7f, 0f, 0.3f, 1f) else FastOutSlowInEasing))
     }
-    val p = if (restart[0]) 0f else progress.value
+    // Always read progress: skipping the read while a switch starts would leave this composable
+    // unsubscribed from the animation, and the old palette would stay on screen
+    val animated = progress.value
+    val p = if (restart[0]) 0f else animated
     shown[0] = if (p >= 1f) target else lerpPalette(from[0], target, p, crossover[0])
     return shown[0]
 }
