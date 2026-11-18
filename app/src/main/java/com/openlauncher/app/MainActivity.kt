@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
             val systemIsDark = isSystemInDarkTheme()
             val isDayMode = if (settings.dayNightMode == DayNightMode.SYSTEM) !systemIsDark else isDayModeVM
             SideEffect { ClimateUiState.isDayMode = isDayMode }
+            LaunchedEffect(isDayMode) { android.util.Log.i("OL-Theme", "applied ${if (isDayMode) "day" else "night"} (vm=$isDayModeVM, mode=${settings.dayNightMode})") }
             val pickerSlot      by vm.shortcutPickerSlot.collectAsStateWithLifecycle()
             val appPickerTarget by vm.appPickerTarget.collectAsStateWithLifecycle()
 

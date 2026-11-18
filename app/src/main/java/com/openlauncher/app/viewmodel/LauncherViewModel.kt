@@ -439,8 +439,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
             DayNightMode.HEADLIGHTS -> lights == Headlight.OFF
             DayNightMode.SYSTEM     -> false // placeholder — overridden in MainActivity via isSystemInDarkTheme()
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+        }.also { day -> android.util.Log.i("OL-Theme", "mode=${s.dayNightMode} lights=$lights sun=${sun()} -> ${if (day) "day" else "night"}") }
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun startLocationUpdates() = locationMgr.start()
     fun stopLocationUpdates()  = locationMgr.stop()

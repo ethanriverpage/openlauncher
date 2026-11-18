@@ -193,11 +193,36 @@ class HeadlightSource(private val context: Context, scope: CoroutineScope) {
     /** Unregister and unbind; call from the owner's onCleared/onDestroy. */
     fun release() {
         released = true
+        runCatching { context.unregisterReceiver(debugReceiver) }
         main.removeCallbacksAndMessages(null)
         teardown()
         Log.i(TAG, "Released")
     }
 
+    /**
+     * adb-only test hook (android.permission.DUMP is held by the shell, not by apps):
+     *   adb shell am broadcast -a com.openlauncher.app.DEBUG_HEADLIGHT --es state on|off|unavailable|real
+     * Simulated readings go through the same debounce as real ones; "real" re-reads the service.
+     */
+    private val debugReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            when (i?.getStringExtra("state")?.lowercase()) {
+                "on" -> report(Headlight.ON, "adb")
+                "off" -> report(Headlight.OFF, "adb")
+                "unavailable" -> report(Headlight.UNAVAILABLE, "adb")
+                "real" -> service?.let { s -> runCatching { s.headlight }.getOrNull() }?.let {
+                    report(when (it) { 1 -> Headlight.ON; 0 -> Headlight.OFF; else -> Headlight.UNAVAILABLE }, "adb re-read")
+                }
+            }
+        }
+    }
+
     // Last in the class: bind() reads properties declared above, which must be initialised first
-    init { bind() }
+    init {
+        runCatching {
+            context.registerReceiver(debugReceiver, android.content.IntentFilter("com.openlauncher.app.DEBUG_HEADLIGHT"),
+                android.Manifest.permission.DUMP, null)
+        }
+        bind()
+    }
 }
